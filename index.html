@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>KOFI Project - Cloud Loyalty</title>
+<!-- Εισαγωγή Supabase JS -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --blue: #8B5E3C; --red: #D9534F; --green: #6B8E23; --orange: #F5A623;
+    --gray: #8D7B6E; --border: #E5D5C1; --bg: #F9F6F0; --dark: #362218;
+    --shadow: 0 8px 24px rgba(0,0,0,0.06);
+  }
+  * { box-sizing: border-box; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { background: var(--bg); color: #212529; padding-bottom: 60px; }
+  
+  svg { display: inline-block; vertical-align: middle; }
+  
+  .header { background: var(--dark); color: #fff; padding: 18px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 100; }
+  .header h1 { font-size: 20px; display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: 0.5px; }
+  
+  .container { max-width: 650px; margin: 20px auto; padding: 0 16px; }
+  
+  .card { background: #fff; border-radius: 16px; border: 1px solid var(--border); overflow: hidden; margin-bottom: 16px; box-shadow: var(--shadow); }
+  .card-head { background: #fdfcfa; padding: 16px 20px; font-weight: 700; font-size: 13px; border-bottom: 1px solid var(--border); color: var(--gray); display: flex; justify-content: space-between; align-items: center; letter-spacing: 0.5px; }
+  .card-body { padding: 20px; }
+  
+  .btn { padding: 14px 20px; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 15px; transition: all 0.2s; }
+  .btn:active { transform: scale(0.98); }
+  .btn-primary { background: var(--blue); color: #fff; }
+  .btn-success { background: var(--green); color: #fff; }
+  .btn-danger { background: var(--red); color: #fff; }
+  .btn-outline { background: #fff; border: 2px solid var(--blue); color: var(--blue); }
+  .btn-full { width: 100%; justify-content: center; }
+  .btn-quick { background: #f3efe9; border: 1px solid var(--border); color: var(--dark); font-size: 16px; font-weight: 700; padding: 16px; flex: 1; border-radius: 12px; display: flex; flex-direction: column; gap: 6px; align-items: center; }
+  .btn-quick:active { background: var(--blue); color: #fff; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  
+  .header-btn { background: transparent; border: 1.5px solid rgba(255,255,255,0.3); color: #fff; padding: 8px 12px; border-radius: 10px; display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  
+  .fg { margin-bottom: 16px; }
+  .fg label { font-size: 12px; font-weight: 700; color: #555; display: block; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .fg input, .fg textarea { width: 100%; padding: 14px; font-size: 16px; border: 2px solid var(--border); border-radius: 12px; outline: none; background: #fff; transition: border-color 0.2s; }
+  .fg input:focus, .fg textarea:focus { border-color: var(--blue); }
+  
+  .search-wrapper { position: relative; margin-bottom: 16px; }
+  .search-wrapper svg { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--gray); }
+  .search-bar { width: 100%; padding: 14px 14px 14px 46px; border: 2px solid var(--border); border-radius: 24px; font-size: 16px; outline: none; background: #fff; }
+  .search-bar:focus { border-color: var(--blue); }
+  
+  .customer-item { display: flex; align-items: center; padding: 16px 0; border-bottom: 1px solid #f0e9df; gap: 14px; cursor: pointer; }
+  .customer-item:last-child { border-bottom: none; }
+  .avatar { width: 48px; height: 48px; border-radius: 50%; background: #EADDCE; display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--dark); font-size: 20px; flex-shrink: 0; }
+  
+  .toast-wrap { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); z-index: 999999; display: flex; flex-direction: column; gap: 10px; pointer-events: none; width: 90%; max-width: 350px; }
+  .toast { background: var(--dark); color: #fff; padding: 14px 20px; border-radius: 12px; font-size: 14px; font-weight: 600; box-shadow: 0 10px 25px rgba(0,0,0,0.2); display: flex; align-items: center; gap: 10px; }
+  .toast.success { background: var(--green); }
+  .toast.error { background: var(--red); }
+  .toast.warn { background: var(--orange); color: #fff; }
+
+  .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; padding: 16px; backdrop-filter: blur(3px); }
+  .modal.open { display: flex; animation: fadeIn 0.2s ease-out; }
+  @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+  @keyframes fadeOut { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(1.05); } }
+  .modal-box { background: #fff; border-radius: 20px; width: 100%; max-width: 420px; overflow: hidden; box-shadow: 0 15px 40px rgba(0,0,0,0.25); }
+  .modal-head { background: var(--dark); color: #fff; padding: 18px 20px; display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 16px; }
+  .modal-body { padding: 20px; max-height: 80vh; overflow-y: auto; }
+  
+  .tab-btn { padding: 12px; flex: 1; border: 1px solid var(--border); background: #f9f6f0; cursor: pointer; font-size: 14px; font-weight: 700; color: var(--gray); text-align: center; }
+  .tab-btn.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+  .stat-box { background: #fdfcfa; padding: 16px; border-radius: 12px; text-align: center; border: 1px solid var(--border); }
+  
+  #modal-reward .modal-box { border: 4px solid var(--green); text-align: center; max-width: 360px; }
+  .reward-icon { font-size: 60px; margin-bottom: 10px; animation: bounce 1s infinite; }
+  @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+
+  /* OVERLAYS */
+  .full-overlay { position: fixed; inset: 0; background: var(--bg); z-index: 99999; display: none; align-items: center; justify-content: center; flex-direction: column; padding: 20px; }
+  .loader-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.9); z-index: 100000; display: none; align-items: center; justify-content: center; flex-direction: column; }
+  .spinner { border: 4px solid rgba(0,0,0,0.1); border-left-color: var(--blue); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+  @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  
+  /* Google Auth Button */
+  .btn-google { background: #fff; color: #333; border: 2px solid #ddd; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 16px; font-weight: 600; padding: 14px; border-radius: 12px; cursor: pointer; width: 100%; max-width: 300px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); transition: all 0.2s; }
+  .btn-google:active { background: #f5f5f5; transform: scale(0.98); }
+</style>
+</head>
+<body>
+
+<!-- ΦΟΡΤΩΣΗ -->
+<div id="api-loader" class="loader-overlay" style="display: flex;">
+  <div class="spinner"></div>
+  <div style="margin-top: 15px; font-weight: 700; color: var(--dark); font-size: 18px;">Σύνδεση με Cloud...</div>
+</div>
+
+<!-- ΟΘΟΝΗ ΣΥΝΔΕΣΗΣ (GOOGLE AUTH) -->
+<div id="auth-screen" class="full-overlay">
+  <div style="text-align: center; max-width: 400px; width: 100%;">
+    <div style="background: var(--dark); color: #fff; width: 90px; height: 90px; border-radius: 28px; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px; box-shadow: var(--shadow);">
+      <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>
+    </div>
+    <h1 style="color: var(--dark); margin-bottom: 12px; font-size: 28px; font-weight: 800;">KOFI Loyalty</h1>
+    <p style="color: var(--gray); font-size: 15px; margin-bottom: 30px; line-height: 1.5;">Απαιτείται ταυτοποίηση μέσω Google για πρόσβαση στη βάση δεδομένων του καταστήματος.</p>
+    
+    <button class="btn-google" onclick="loginWithGoogle()" style="margin: 0 auto;">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+      Σύνδεση με Google
+    </button>
+  </div>
+</div>
+
+<!-- ΟΘΟΝΗ ΚΛΕΙΔΩΜΑΤΟΣ PIN (BOOT LOCK) -->
+<div id="boot-lock" class="full-overlay">
+  <div style="text-align: center; max-width: 350px; width: 100%;">
+    <div style="background: var(--dark); color: #fff; width: 80px; height: 80px; border-radius: 24px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; box-shadow: var(--shadow);">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+    </div>
+    <h2 style="color: var(--dark); margin-bottom: 8px;">KOFI Loyalty</h2>
+    <p style="color: var(--gray); font-size: 14px; margin-bottom: 24px;">Σύστημα κλειδωμένο. Εισάγετε PIN πρόσβασης.</p>
+    
+    <input type="password" id="boot-pin-input" placeholder="****" onkeypress="if(event.key==='Enter') unlockApp()" style="width:100%; text-align:center; letter-spacing:12px; font-size:24px; padding:16px; border:2px solid var(--border); border-radius:12px; margin-bottom:16px; outline:none; font-weight:bold;">
+    <button class="btn btn-primary btn-full" style="padding: 16px; font-size: 16px;" onclick="unlockApp()">Είσοδος Ταμείου</button>
+    <button class="btn btn-outline btn-full" style="padding: 12px; font-size: 14px; margin-top: 12px; border: 2px solid var(--border); color: var(--gray);" onclick="logoutGoogle()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+      Αλλαγή Λογαριασμού
+    </button>
+  </div>
+</div>
+
+<!-- Η ΚΥΡΙΩΣ ΕΦΑΡΜΟΓΗ ΑΡΧΙΖΕΙ ΕΔΩ -->
+<div id="main-app" style="display: none;">
+
+<div class="toast-wrap" id="toast-wrap"></div>
+
+<div class="header">
+  <h1>
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>
+    KOFI Loyalty
+  </h1>
+  <div style="display:flex; gap:8px;">
+    <!-- Ανανέωση -->
+    <button class="header-btn" style="background: rgba(255,255,255,0.1);" onclick="loadDataFromCloud()" title="Ανανέωση Δεδομένων">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><polyline points="3 3 3 8 8 8"></polyline></svg>
+    </button>
+    <!-- Κλείδωμα -->
+    <button class="header-btn" style="background: rgba(255,255,255,0.1);" onclick="lockApp()" title="Κλείδωμα Ταμείου">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+    </button>
+    <!-- Στατιστικά -->
+    <button class="header-btn" onclick="checkPin(() => openStatsModal('today'))" title="Στατιστικά">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+    </button>
+    <!-- Ρυθμίσεις -->
+    <button class="header-btn" onclick="checkPin(() => openSettingsModal())" title="Ρυθμίσεις">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+    </button>
+    <!-- ΝΕΟ: Κουμπί Αποσύνδεσης (Ορατό σε όλους) -->
+    <button class="header-btn" style="background: rgba(217, 83, 79, 0.5); border-color: rgba(217, 83, 79, 0.8);" onclick="logoutGoogle()" title="Αποσύνδεση Λογαριασμού Google">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+    </button>
+  </div>
+</div>
+
+<div class="container">
+  <div class="card">
+    <div class="card-head">ΣΥΝΟΛΙΚΑ ΣΤΟΙΧΕΙΑ</div>
+    <div class="card-body" style="display:grid; grid-template-columns: 1fr 1fr; gap: 16px; text-align: center;">
+      <div class="stat-box">
+        <div style="font-size:12px; font-weight:700; color:var(--gray); margin-bottom: 4px;">Εγγεγραμμένοι Πελάτες</div>
+        <div id="stat-total-cust" style="font-size:28px; font-weight:800; color:var(--dark);">0</div>
+      </div>
+      <div class="stat-box">
+        <div style="font-size:12px; font-weight:700; color:var(--gray); margin-bottom: 4px;">Ανταποδοτικοί Πόντοι</div>
+        <div id="stat-total-pts" style="font-size:28px; font-weight:800; color:var(--orange);">0</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">ΔΙΑΧΕΙΡΙΣΗ & ΑΝΑΖΗΤΗΣΗ</div>
+    <div class="card-body">
+      <button class="btn btn-primary btn-full" style="margin-bottom:16px; font-size:16px;" onclick="openAddCustomerModal()">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+        Νέος Πελάτης
+      </button>
+      <div class="search-wrapper">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <input type="search" class="search-bar" id="search-inp" placeholder="Αναζήτηση με όνομα ή τηλέφωνο..." oninput="renderCustomers(this.value)">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">ΠΕΛΑΤΟΛΟΓΙΟ (Cloud Auth)</div>
+    <div class="card-body" id="customers-list" style="padding: 0 20px;"></div>
+  </div>
+</div>
+</div> <!-- END MAIN APP -->
+
+<!-- REWARD ALERT MODAL -->
+<div class="modal" id="modal-reward">
+  <div class="modal-box">
+    <div class="modal-body" style="padding: 40px 20px;">
+      <div class="reward-icon">🎁</div>
+      <h2 style="color: var(--green); font-size: 24px; margin-bottom: 12px; font-weight: 800;">ΚΕΡΔΙΣΕ ΔΩΡΟ!</h2>
+      <p style="color: var(--gray); font-size: 16px; margin-bottom: 24px; line-height: 1.5; font-weight: 600;">Ο πελάτης μόλις συμπλήρωσε τους πόντους! Δικαιούται τη δωρεάν έκπτωση/καφέ.</p>
+      <button class="btn btn-success btn-full" style="font-size: 16px; padding: 16px;" onclick="closeModal('modal-reward')">Τέλεια!</button>
+    </div>
+  </div>
+</div>
+
+<!-- PIN CHECK MODAL -->
+<div class="modal" id="modal-pin">
+  <div class="modal-box" style="max-width: 320px;">
+    <div class="modal-head">
+      <span style="display:flex; align-items:center; gap:8px;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+        Master PIN
+      </span>
+      <button onclick="closeModal('modal-pin')" style="background:none; border:none; color:#fff; cursor:pointer;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+    </div>
+    <div class="modal-body" style="text-align: center;">
+      <p style="font-size:12px; color:var(--gray); margin-bottom:12px;">Απαιτείται PIN Διαχειριστή για αυτή την ενέργεια</p>
+      <input type="password" id="input-check-pin" placeholder="****" onkeypress="if(event.key==='Enter') verifyPin()" style="width:100%; text-align:center; letter-spacing:12px; font-size:24px; padding:16px; border:2px solid var(--border); border-radius:12px; margin-bottom:16px; outline:none; font-weight:bold;">
+      <button class="btn btn-primary btn-full" onclick="verifyPin()">Ξεκλείδωμα</button>
+    </div>
+  </div>
+</div>
+
+<!-- STATS MODAL -->
+<div class="modal" id="modal-stats">
+  <div class="modal-box" style="max-width: 500px;">
+    <div class="modal-head">
+      <span style="display:flex; align-items:center; gap:8px;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+        Στατιστικά Κινήσεων
+      </span>
+      <button onclick="closeModal('modal-stats')" style="background:none; border:none; color:#fff; cursor:pointer;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex; border-radius:12px; overflow:hidden; margin-bottom:20px; border: 2px solid var(--border);">
+        <div class="tab-btn" id="tab-today" onclick="openStatsModal('today')">Σήμερα</div>
+        <div class="tab-btn" id="tab-week" onclick="openStatsModal('week')">Εβδ.</div>
+        <div class="tab-btn" id="tab-month" onclick="openStatsModal('month')">Μήνας</div>
+        <div class="tab-btn" id="tab-year" onclick="openStatsModal('year')">Έτος</div>
+      </div>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <div class="stat-box"><div style="font-size:12px; font-weight:700; color:var(--gray);">Νέοι Πελάτες</div><div id="st-new" style="font-size:24px; font-weight:800; color:var(--dark);">0</div></div>
+        <div class="stat-box"><div style="font-size:12px; font-weight:700; color:var(--gray);">Δόθηκαν Πόντοι</div><div id="st-pts" style="font-size:24px; font-weight:800; color:var(--orange);">0</div></div>
+        <div class="stat-box"><div style="font-size:12px; font-weight:700; color:var(--gray);">Εξαργυρώσεις</div><div id="st-red" style="font-size:24px; font-weight:800; color:var(--green);">0</div></div>
+        <div class="stat-box"><div style="font-size:12px; font-weight:700; color:var(--gray);">Τζίρος (€)</div><div id="st-eur" style="font-size:24px; font-weight:800; color:var(--blue);">0,00€</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="modal" id="modal-settings">
+  <div class="modal-box">
+    <div class="modal-head">
+      <span style="display:flex; align-items:center; gap:8px;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        Ρυθμίσεις Loyalty
+      </span>
+      <button onclick="closeModal('modal-settings')" style="background:none; border:none; color:#fff; cursor:pointer;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="fg"><label>Πόντοι/Καφέδες για Εξαργύρωση</label><input type="number" id="set-pts-req" min="1" step="1" placeholder="π.χ. 10"></div>
+      <div class="fg"><label>Αξία Έκπτωσης σε Ευρώ</label><input type="number" id="set-discount" min="0" step="0.10" placeholder="π.χ. 2.00"></div>
+      <div class="fg" style="margin-top:24px; padding-top:20px; border-top:2px solid #f0e9df;">
+        <label>PIN ΔΙΑΧΕΙΡΙΣΤΗ (Master)</label><input type="password" id="set-pin" placeholder="Ορισμός Master PIN">
+        <div style="font-size:11px; color:var(--gray); margin-top:6px; text-transform:none;">Κλειδώνει όλη την εφαρμογή. (Κενό = Ξεκλείδωτο)</div>
+      </div>
+      <div class="fg">
+        <label>PIN ΠΡΟΣΩΠΙΚΟΥ (Μόνο Ταμείο)</label><input type="password" id="set-staff-pin" placeholder="Ορισμός PIN Προσωπικού">
+      </div>
+      <button class="btn btn-primary btn-full" style="margin-top:10px; font-size:16px;" onclick="saveSettings()">Αποθήκευση Ρυθμίσεων</button>
+      
+      <div style="margin: 30px 0 20px 0; border-top:2px dashed #f0e9df;"></div>
+      
+      <div style="font-size:12px; font-weight:700; color:var(--gray); margin-bottom:12px; text-align:center;">ΕΞΑΓΩΓΗ ΔΕΔΟΜΕΝΩΝ (CSV)</div>
+      <button class="btn btn-outline btn-full" style="font-size:15px;" onclick="exportCSV()">
+        Λήψη Λίστας CSV
+      </button>
+
+      <!-- ΝΕΟ ΚΟΥΜΠΙ ΑΠΟΣΥΝΔΕΣΗΣ ΣΤΙΣ ΡΥΘΜΙΣΕΙΣ -->
+      <div style="margin: 30px 0 20px 0; border-top:2px solid #f0e9df;"></div>
+      <button class="btn btn-danger btn-full" style="background:#fff; border:2px solid var(--red); color:var(--red);" onclick="logoutGoogle()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+        Αποσύνδεση Λογαριασμού Google
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- CUSTOMER ACTION MODAL -->
+<div class="modal" id="modal-action">
+  <div class="modal-box">
+    <div class="modal-head">
+      <span id="modal-cust-name" style="display:flex; align-items:center; gap:8px;">Καρτέλα Πελάτη</span>
+      <button onclick="closeModal('modal-action')" style="background:none; border:none; color:#fff; cursor:pointer;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+    </div>
+    <div class="modal-body" id="modal-action-body"></div>
+  </div>
+</div>
+
+<!-- EDIT / ADD CUSTOMER MODAL -->
+<div class="modal" id="modal-edit">
+  <div class="modal-box">
+    <div class="modal-head">
+      <span id="modal-edit-title" style="display:flex; align-items:center; gap:8px;">Στοιχεία Πελάτη</span>
+      <button onclick="closeModal('modal-edit')" style="background:none; border:none; color:#fff; cursor:pointer;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="fg"><label>Όνομα</label><input id="edit-name" placeholder="π.χ. Γιάννης"></div>
+      <div class="fg"><label>Επώνυμο</label><input id="edit-surname"></div>
+      <div class="fg"><label>Τηλέφωνο</label><input id="edit-phone" type="tel"></div>
+      <div style="display:flex; gap:12px; margin-top:24px;">
+        <button class="btn btn-danger" id="edit-del-btn" onclick="deleteCustomer()" style="display:none; padding:14px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+        <button class="btn btn-primary btn-full" onclick="saveCustomer()">Αποθήκευση</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ==========================================
+  // ⚙️ ΡΥΘΜΙΣΕΙΣ SUPABASE
+  // ==========================================
+  const SUPABASE_URL = 'https://pksewldotozfgsewweha.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_9DqX3lzgbFP5pEf0qrau2A_fnwYJgs0';
+  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  // ==========================================
+
+  const ICONS = {
+    star: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>',
+    coffee: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>',
+    gift: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"></polyline><rect x="2" y="7" width="20" height="5"></rect><line x1="12" y1="22" x2="12" y2="7"></line><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"></path><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"></path></svg>',
+    tag: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path></svg>',
+    edit: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>',
+    check: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>',
+    x: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>',
+    alert: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>'
+  };
+
+  let S_customers = []; let S_transactions = [];
+  let loyaltySettings = { ptsRequired: 10, discountAmount: 2.00, pin: "", staffPin: "" };
+  let activeCustId = null; let editingCustId = null; let pinSuccessCallback = null;
+  const fmt = (n) => Number(n || 0).toFixed(2).replace('.', ',') + '€';
+
+  function showLoader() { document.getElementById('api-loader').style.display = 'flex'; }
+  function hideLoader() { document.getElementById('api-loader').style.display = 'none'; }
+
+  function toast(msg, type='info') {
+    const icons = { success: ICONS.check, error: ICONS.x, warn: ICONS.alert, info: ICONS.alert };
+    const el = document.createElement('div'); el.className = 'toast ' + type;
+    el.innerHTML = (icons[type] || icons.info) + ' <span>' + msg + '</span>';
+    document.getElementById('toast-wrap').appendChild(el);
+    setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'scale(0.9)'; setTimeout(() => el.remove(), 400); }, 3000);
+  }
+
+  function showModal(id) { document.getElementById(id).classList.add('open'); }
+  function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+  // --- GOOGLE AUTH ---
+  async function checkAuthSession() {
+    hideLoader();
+    const { data: { session }, error } = await supabaseClient.auth.getSession();
+    
+    if (session) {
+      document.getElementById('auth-screen').style.display = 'none';
+      document.getElementById('main-app').style.display = 'block';
+      loadLocalSettings();
+      
+      if (loyaltySettings.pin && loyaltySettings.pin.trim() !== "") {
+        document.getElementById('boot-lock').style.display = 'flex';
+        setTimeout(() => document.getElementById('boot-pin-input').focus(), 100);
+      } else {
+        loadDataFromCloud();
+      }
+    } else {
+      document.getElementById('auth-screen').style.display = 'flex';
+      document.getElementById('main-app').style.display = 'none';
+      document.getElementById('boot-lock').style.display = 'none';
+    }
+  }
+
+  async function loginWithGoogle() {
+    showLoader();
+    const { error } = await supabaseClient.auth.signInWithOAuth({
+      provider: 'google',
+      options: { 
+        redirectTo: window.location.origin,
+        queryParams: {
+          prompt: 'select_account'
+        }
+      }
+    });
+    if (error) { hideLoader(); toast('Σφάλμα σύνδεσης Google', 'error'); }
+  }
+
+  async function logoutGoogle() {
+    if(!confirm('Αποσύνδεση από τον λογαριασμό Google;')) return;
+    showLoader();
+    await supabaseClient.auth.signOut();
+    localStorage.clear(); 
+    sessionStorage.clear(); 
+    window.location.replace(window.location.origin); 
+  }
+
+  // --- BOOT LOCK ---
+  function lockApp() {
+    if(loyaltySettings.pin && loyaltySettings.pin.trim() !== "") {
+      document.getElementById('boot-lock').style.animation = 'fadeIn 0.2s ease-out forwards';
+      document.getElementById('boot-lock').style.display = 'flex';
+      setTimeout(() => document.getElementById('boot-pin-input').focus(), 100);
+    } else toast('Δεν έχει οριστεί Master PIN', 'warn');
+  }
+
+  function unlockApp() {
+    const entered = document.getElementById('boot-pin-input').value;
+    const adminPin = loyaltySettings.pin; const staffPin = loyaltySettings.staffPin;
+    if (entered === adminPin || (staffPin && staffPin.trim() !== "" && entered === staffPin)) {
+      document.getElementById('boot-lock').style.display = 'none'; document.getElementById('boot-pin-input').value = '';
+      toast('Επιτυχής πρόσβαση', 'success'); loadDataFromCloud();
+    } else { toast('Λάθος PIN πρόσβασης', 'error'); document.getElementById('boot-pin-input').value = ''; }
+  }
+
+  // --- SETTINGS ---
+  function loadLocalSettings() {
+    try { const saved = localStorage.getItem('kofi_loyalty_settings_v2'); if (saved) loyaltySettings = { ...loyaltySettings, ...JSON.parse(saved) }; } catch(e) {}
+  }
+  
+  function checkPin(callback) {
+    if (loyaltySettings.pin && loyaltySettings.pin.trim() !== "") {
+      pinSuccessCallback = callback; document.getElementById('input-check-pin').value = '';
+      showModal('modal-pin'); setTimeout(() => document.getElementById('input-check-pin').focus(), 100);
+    } else callback();
+  }
+
+  function verifyPin() {
+    const entered = document.getElementById('input-check-pin').value;
+    if (entered === loyaltySettings.pin) { closeModal('modal-pin'); if(pinSuccessCallback) pinSuccessCallback(); } 
+    else { toast('Λάθος Master PIN.', 'error'); document.getElementById('input-check-pin').value = ''; }
+  }
+
+  function openSettingsModal() {
+    document.getElementById('set-pts-req').value = loyaltySettings.ptsRequired; document.getElementById('set-discount').value = loyaltySettings.discountAmount;
+    document.getElementById('set-pin').value = loyaltySettings.pin; document.getElementById('set-staff-pin').value = loyaltySettings.staffPin || "";
+    showModal('modal-settings');
+  }
+
+  function saveSettings() {
+    const pts = parseInt(document.getElementById('set-pts-req').value); const disc = parseFloat(document.getElementById('set-discount').value);
+    const pin = document.getElementById('set-pin').value.trim(); const staffPin = document.getElementById('set-staff-pin').value.trim();
+    if (isNaN(pts) || pts < 1) { toast('Εισάγετε έγκυρους πόντους', 'warn'); return; }
+    if (isNaN(disc) || disc < 0) { toast('Εισάγετε έγκυρο ποσό έκπτωσης', 'warn'); return; }
+    loyaltySettings.ptsRequired = pts; loyaltySettings.discountAmount = disc; loyaltySettings.pin = pin; loyaltySettings.staffPin = staffPin;
+    localStorage.setItem('kofi_loyalty_settings_v2', JSON.stringify(loyaltySettings));
+    closeModal('modal-settings'); toast('Οι ρυθμίσεις αποθηκεύτηκαν τοπικά', 'success');
+  }
+
+  // --- CLOUD DB ---
+  async function loadDataFromCloud() {
+    if (SUPABASE_ANON_KEY.includes('ΒΑΛΕ_ΕΔΩ')) { toast('Παρακαλώ βάλτε το Anon Key!', 'warn'); return; }
+    showLoader();
+    try {
+      const { data: custData, error: custErr } = await supabaseClient.from('customers').select('*').order('created_at', { ascending: false });
+      if (custErr) throw custErr;
+      S_customers = custData || [];
+      const { data: txData, error: txErr } = await supabaseClient.from('transactions').select('*');
+      if (txErr) throw txErr;
+      S_transactions = txData || [];
+      renderCustomers(document.getElementById('search-inp').value);
+    } catch(err) { toast('Σφάλμα σύνδεσης με Cloud. Ελέγξτε το Internet σας.', 'error'); console.error(err); }
+    hideLoader();
+  }
+
+  async function logTx(type, pts, eur, custId) {
+    const tx = { id: Date.now(), type: type, pts: pts || 0, eur: eur || 0, customer_id: custId || null, date: new Date().toISOString() };
+    S_transactions.push(tx); await supabaseClient.from('transactions').insert([tx]);
+  }
+
+  function openStatsModal(period) {
+    ['today', 'week', 'month', 'year'].forEach(p => { document.getElementById(`tab-${p}`).classList.remove('active'); });
+    document.getElementById(`tab-${period}`).classList.add('active');
+
+    const now = new Date(); let start = new Date(0);
+    if (period === 'today') { start = new Date(now.getFullYear(), now.getMonth(), now.getDate()); } 
+    else if (period === 'week') { const day = now.getDay() || 7; start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day + 1); } 
+    else if (period === 'month') { start = new Date(now.getFullYear(), now.getMonth(), 1); } 
+    else if (period === 'year') { start = new Date(now.getFullYear(), 0, 1); }
+
+    let cNew = 0, cPts = 0, cRed = 0, cEur = 0;
+    S_transactions.forEach(t => {
+      if (new Date(t.date) >= start) {
+        if (t.type === 'NEW_CUST') cNew++;
+        if (t.type === 'ADD_PTS') { cPts += t.pts; cEur += t.eur; }
+        if (t.type === 'REDEEM') { cRed++; }
+      }
+    });
+    document.getElementById('st-new').textContent = cNew; document.getElementById('st-pts').textContent = cPts;
+    document.getElementById('st-red').textContent = cRed; document.getElementById('st-eur').textContent = fmt(cEur);
+    showModal('modal-stats');
+  }
+
+  function renderCustomers(filter='') {
+    const listEl = document.getElementById('customers-list');
+    document.getElementById('stat-total-cust').textContent = S_customers.length;
+    document.getElementById('stat-total-pts').textContent = S_customers.reduce((s, c) => s + (c.points || 0), 0).toLocaleString();
+
+    if (!filter || filter.trim() === '') {
+      listEl.innerHTML = `<div style="text-align:center; padding:40px 20px; color:var(--gray); font-size:14px; font-weight:600;"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#E5D5C1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:10px;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg><br>Η λίστα είναι κρυφή για λόγους απορρήτου.<br>Πληκτρολογήστε στοιχεία για αναζήτηση.</div>`;
+      return;
+    }
+
+    let custs = S_customers; const q = filter.toLowerCase();
+    custs = custs.filter(c => (c.name + ' ' + (c.surname||'') + ' ' + (c.phone||'')).toLowerCase().includes(q));
+
+    if (!custs.length) { listEl.innerHTML = `<div style="text-align:center; padding:40px 20px; color:var(--gray); font-size:15px; font-weight:600;">Δεν βρέθηκε πελάτης.</div>`; return; }
+    
+    listEl.innerHTML = custs.map(c => {
+      const displayName = c.name ? c.name : 'Πελάτης'; const initial = displayName === 'Πελάτης' ? 'Π' : displayName[0].toUpperCase();
+      return `
+      <div class="customer-item" onclick="openActionModal(${c.id})">
+        <div class="avatar">${initial}</div>
+        <div style="flex:1; min-width:0;"><div style="font-weight:700; font-size:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--dark);">${displayName} ${c.surname||''}</div><div style="font-size:13px; color:var(--gray); margin-top:2px;">${c.phone || 'Χωρίς τηλέφωνο'}</div></div>
+        <div style="text-align:right; flex-shrink:0;"><div style="font-weight:800; font-size:18px; color:var(--orange); display:flex; align-items:center; gap:4px; justify-content:flex-end;">${ICONS.star} ${c.points || 0}</div><div style="font-size:11px; font-weight:600; color:var(--gray); margin-top:4px;">${c.orders || 0} επισκ.</div></div>
+      </div>`;
+    }).join('');
+  }
+
+  function openAddCustomerModal() {
+    editingCustId = null; document.getElementById('modal-edit-title').innerHTML = `${ICONS.edit} Νέος Πελάτης`;
+    ['edit-name','edit-surname','edit-phone','edit-email','edit-notes'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('edit-del-btn').style.display = 'none'; showModal('modal-edit');
+  }
+
+  function openEditCustomerModal() {
+    closeModal('modal-action'); const c = S_customers.find(x => x.id === activeCustId); if (!c) return; editingCustId = c.id;
+    document.getElementById('modal-edit-title').innerHTML = `${ICONS.edit} Επεξεργασία Πελάτη`;
+    document.getElementById('edit-name').value = c.name || ''; document.getElementById('edit-surname').value = c.surname || '';
+    document.getElementById('edit-phone').value = c.phone || ''; document.getElementById('edit-del-btn').style.display = 'block'; showModal('modal-edit');
+  }
+
+  async function saveCustomer() {
+    const nameInput = document.getElementById('edit-name').value.trim(); const phoneInput = document.getElementById('edit-phone').value.trim();
+    if (!nameInput && !phoneInput) { toast('Απαιτείται Όνομα Ή Τηλέφωνο', 'warn'); return; }
+    
+    showLoader();
+    const custData = { name: nameInput, surname: document.getElementById('edit-surname').value.trim(), phone: phoneInput };
+    if (editingCustId === null) {
+      const newCust = { id: Date.now(), ...custData, points: 0, orders: 0, total_spent: 0, created_at: new Date().toISOString() };
+      const { error } = await supabaseClient.from('customers').insert([newCust]);
+      if (!error) { S_customers.unshift(newCust); logTx('NEW_CUST', 0, 0, newCust.id); toast('Ο πελάτης προστέθηκε στο Cloud', 'success'); } 
+      else toast('Σφάλμα προσθήκης', 'error');
+    } else {
+      const { error } = await supabaseClient.from('customers').update(custData).eq('id', editingCustId);
+      if (!error) { const c = S_customers.find(x => x.id === editingCustId); if (c) Object.assign(c, custData); toast('Η καρτέλα ενημερώθηκε', 'success'); } 
+      else toast('Σφάλμα ενημέρωσης', 'error');
+    }
+    hideLoader(); document.getElementById('search-inp').value = ''; renderCustomers(''); closeModal('modal-edit');
+  }
+
+  async function deleteCustomer() {
+    if (!confirm('Οριστική διαγραφή πελάτη;')) return;
+    showLoader(); const { error } = await supabaseClient.from('customers').delete().eq('id', editingCustId); hideLoader();
+    if(!error) { S_customers = S_customers.filter(x => x.id !== editingCustId); renderCustomers(document.getElementById('search-inp').value); closeModal('modal-edit'); toast('Ο πελάτης διαγράφηκε', 'warn'); } 
+    else toast('Σφάλμα διαγραφής', 'error');
+  }
+
+  function openActionModal(id) {
+    activeCustId = id; const c = S_customers.find(x => x.id === id); if (!c) return;
+    const displayName = c.name ? `${c.name} ${c.surname||''}` : `Πελάτης (${c.phone})`;
+    document.getElementById('modal-cust-name').innerHTML = `<div style="display:flex; align-items:center; gap:8px; font-size:18px;"><div style="background:#EADDCE; color:var(--dark); width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px;">${(c.name ? c.name[0] : 'Π').toUpperCase()}</div>${displayName}</div>`;
+    const pts = c.points || 0; const reqPts = loyaltySettings.ptsRequired; const disc = loyaltySettings.discountAmount; const canRedeem = pts >= reqPts;
+
+    document.getElementById('modal-action-body').innerHTML = `
+      <div style="background:#fcfbf9; border: 1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:20px; font-size:14px;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:8px;"><span style="color:var(--gray); font-weight:600;">Τηλέφωνο:</span><b style="color:var(--dark);">${c.phone||'—'}</b></div>
+        <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px dashed var(--border); padding-top:10px; margin-top:6px;"><span style="color:var(--gray); font-weight:700; font-size:13px;">ΔΙΑΘΕΣΙΜΟΙ ΠΟΝΤΟΙ:</span><b style="color:var(--orange); font-size:22px; display:flex; align-items:center; gap:6px;">${ICONS.star} ${pts}</b></div>
+      </div>
+      <div style="background:#f2f7ec; border:2px solid #d0e3b8; border-radius:12px; padding:20px; margin-bottom:24px; text-align:center;">
+        <div style="font-weight:800; font-size:15px; color:var(--green); margin-bottom:12px; display:flex; justify-content:center; align-items:center; gap:8px;">${ICONS.gift} ΔΙΑΘΕΣΙΜΗ ΕΚΠΤΩΣΗ ${fmt(disc)}</div>
+        <button class="btn btn-success btn-full" ${canRedeem ? '' : 'disabled'} onclick="redeemDiscount()" style="font-size:16px; padding:16px;">${ICONS.tag} Εξαργύρωση (-${reqPts} ${ICONS.star})</button>
+        <div style="font-size:12px; font-weight:600; color:#6B8E23; margin-top:10px;">Πρόοδος: <b style="font-size:14px;">${pts}</b> / ${reqPts} Πόντους</div>
+      </div>
+      <div style="font-weight:800; font-size:12px; color:var(--gray); margin-bottom:12px; letter-spacing:0.5px;">ΠΡΟΣΘΗΚΗ ΠΟΝΤΩΝ</div>
+      <div style="display:flex; gap:12px; margin-bottom:12px;">
+        <button class="btn-quick" onclick="processAddPoints(1, 0)">${ICONS.coffee} <span>+1 Καφές</span></button>
+        <button class="btn-quick" onclick="processAddPoints(2, 0)"><div style="display:flex;">${ICONS.coffee}${ICONS.coffee}</div> <span>+2</span></button>
+        <button class="btn-quick" onclick="processAddPoints(3, 0)"><div style="display:flex;">${ICONS.coffee}${ICONS.coffee}${ICONS.coffee}</div> <span>+3</span></button>
+      </div>
+      <div style="display:flex; gap:10px; margin-bottom:24px;">
+        <input type="number" id="tx-pts" placeholder="Πόντοι" style="width:100px; padding:14px; border:2px solid var(--border); border-radius:12px; outline:none; text-align:center; font-size:16px; font-weight:bold;">
+        <input type="number" id="tx-eur" placeholder="Τζίρος €" step="0.10" min="0" style="flex:1; padding:14px; border:2px solid var(--border); border-radius:12px; outline:none; font-size:16px;">
+        <button class="btn btn-primary" style="padding:14px 20px;" onclick="processCustomPoints()">+</button>
+      </div>
+      <button class="btn btn-outline btn-full" onclick="openEditCustomerModal()">${ICONS.edit} Επεξεργασία Πελάτη</button>
+    `; showModal('modal-action');
+  }
+
+  async function processAddPoints(coffees, euros) {
+    const c = S_customers.find(x => x.id === activeCustId); if (!c) return;
+    let oldPts = c.points || 0; let newPts = oldPts + coffees; let newOrders = (c.orders || 0) + 1; let newTotal = (c.total_spent || 0) + euros;
+    c.points = newPts; c.orders = newOrders; c.total_spent = newTotal;
+    openActionModal(activeCustId); renderCustomers(document.getElementById('search-inp').value);
+    
+    const { error } = await supabaseClient.from('customers').update({ points: newPts, orders: newOrders, total_spent: newTotal }).eq('id', c.id);
+    if(error) toast('Αποτυχία συγχρονισμού!', 'error'); else logTx('ADD_PTS', coffees, euros, c.id);
+
+    if (Math.floor(oldPts / loyaltySettings.ptsRequired) < Math.floor(newPts / loyaltySettings.ptsRequired)) { showModal('modal-reward'); } 
+    else { toast(`Προστέθηκαν ${coffees} πόντοι!`, 'success'); }
+  }
+
+  function processCustomPoints() {
+    const pts = parseInt(document.getElementById('tx-pts').value) || 0; const eur = parseFloat(document.getElementById('tx-eur').value) || 0;
+    if (pts <= 0 && eur <= 0) { toast('Εισάγετε πόντους ή ποσό', 'warn'); return; } processAddPoints(pts, eur);
+  }
+
+  async function redeemDiscount() {
+    const c = S_customers.find(x => x.id === activeCustId); if (!c) return;
+    const reqPts = loyaltySettings.ptsRequired; if ((c.points || 0) < reqPts) { toast('Δεν επαρκούν οι πόντοι', 'error'); return; }
+    let newPts = c.points - reqPts; c.points = newPts; 
+    openActionModal(activeCustId); renderCustomers(document.getElementById('search-inp').value);
+    
+    const { error } = await supabaseClient.from('customers').update({ points: newPts }).eq('id', c.id);
+    if(error) toast('Αποτυχία συγχρονισμού εξαργύρωσης', 'error');
+    else { logTx('REDEEM', reqPts, 0, c.id); toast(`Επιτυχής εξαργύρωση!`, 'success'); }
+  }
+
+  function exportCSV() {
+    if (!S_customers.length) { toast('Δεν υπάρχουν πελάτες για εξαγωγή', 'warn'); return; }
+    let csvContent = '\uFEFFΌνομα,Επώνυμο,Τηλέφωνο\n';
+    S_customers.forEach(c => {
+      let n = (c.name || '').replace(/"/g, '""'); let s = (c.surname || '').replace(/"/g, '""'); let p = (c.phone || '').replace(/"/g, '""');
+      csvContent += `"${n}","${s}","${p}"\n`;
+    });
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); const url = URL.createObjectURL(blob); const a = document.createElement('a');
+    a.href = url; a.download = `kofi_contacts_${new Date().toISOString().split('T')[0]}.csv`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    closeModal('modal-settings');
+  }
+
+  // --- ΑΘΟΡΥΒΟΣ ΑΥΤΟΜΑΤΟΣ ΣΥΓΧΡΟΝΙΣΜΟΣ (Κάθε 10 δευτερόλεπτα) ---
+  async function silentSync() {
+    if (document.getElementById('main-app').style.display === 'block' && document.getElementById('boot-lock').style.display === 'none') {
+      try {
+        const { data: custData } = await supabaseClient.from('customers').select('*').order('created_at', { ascending: false });
+        if (custData) S_customers = custData;
+        
+        const { data: txData } = await supabaseClient.from('transactions').select('*');
+        if (txData) S_transactions = txData;
+        
+        const currentSearch = document.getElementById('search-inp').value;
+        renderCustomers(currentSearch);
+      } catch(err) {
+        console.error("Σφάλμα αθόρυβου συγχρονισμού", err);
+      }
+    }
+  }
+  
+  setInterval(silentSync, 10000);
+  checkAuthSession();
+</script>
+
+</body>
+</html>
