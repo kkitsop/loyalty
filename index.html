@@ -3,24 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KOFI Project - Σύστημα Loyalty</title>
+    <title>KOFI Project - Σύστημα Loyalty & Ταμείου</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        :root { --bg: #121212; --card: #1e1e1e; --accent: #d4af37; --text: #fff; --text-dim: #aaa; --danger: #cf6679; }
-        body { font-family: Arial, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; display: flex; justify-content: center; }
-        .container { width: 100%; max-width: 480px; }
-        .card { background: var(--card); padding: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); margin-bottom: 20px; }
+        :root { --bg: #121212; --card: #1e1e1e; --accent: #d4af37; --text: #fff; --text-dim: #aaa; --success: #4caf50; --danger: #e64a19; }
+        body { font-family: Arial, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 15px; display: flex; justify-content: center; }
+        .container { width: 100%; max-width: 500px; }
+        .card { background: var(--card); padding: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); margin-bottom: 15px; }
         h1, h2 { color: var(--accent); text-align: center; margin-top: 0; }
-        input { width: 100%; padding: 12px; margin: 8px 0 15px 0; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
+        label { font-size: 14px; color: var(--text-dim); }
+        input { width: 100%; padding: 12px; margin: 6px 0 12px 0; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
         .btn { background: var(--accent); color: #121212; border: none; padding: 12px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; width: 100%; }
         .btn:hover { background: #e5c158; }
-        .customer-info { background: #252525; padding: 15px; border-radius: 8px; margin-top: 15px; }
-        .points-display { font-size: 24px; color: var(--accent); font-weight: bold; text-align: center; margin: 10px 0; }
+        .customer-info { background: #252525; padding: 15px; border-radius: 8px; margin-top: 15px; border: 1px solid #333; }
+        .points-display { font-size: 28px; color: var(--accent); font-weight: bold; text-align: center; margin: 10px 0; }
         .actions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
-        .btn-action { padding: 12px; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; color: #fff; }
-        .btn-add { background: #4caf50; }
-        .btn-redeem { background: #e64a19; }
-        .log-list { font-size: 13px; color: var(--text-dim); max-height: 150px; overflow-y: auto; margin-top: 10px; }
+        .btn-action { padding: 12px; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; color: #fff; font-size: 15px; }
+        .btn-add { background: var(--success); }
+        .btn-redeem { background: var(--danger); }
+        .new-user-box { margin-top: 10px; border-top: 1px dashed #444; padding-top: 12px; }
     </style>
 </head>
 <body>
@@ -28,31 +29,41 @@
     <div class="container">
         <div class="card">
             <h1>☕ KOFI Project</h1>
-            <h2>Σύστημα Loyalty</h2>
+            <h2>Διαχείριση Πελατών & Loyalty</h2>
             
-            <label for="phoneInput">Αριθμός Κινητού Πελάτη:</label>
+            <label for="phoneInput">Κινητό Τηλέφωνο Πελάτη:</label>
             <input type="tel" id="phoneInput" placeholder="π.χ. 6912345678" maxlength="10">
-            <button class="btn" onclick="searchCustomer()">Αναζήτηση / Εγγραφή</button>
+            <button class="btn" onclick="searchCustomer()">Αναζήτηση Πελάτη</button>
 
+            <!-- Καρτέλα Εμφάνισης Στοιχείων Πελάτη -->
             <div id="customerSection" style="display:none;" class="customer-info">
-                <div id="customerName" style="font-weight: bold; font-size: 18px; text-align: center;"></div>
+                <div id="customerName" style="font-weight: bold; font-size: 18px; text-align: center; color: #fff;"></div>
+                <div id="customerPhone" style="font-size: 13px; text-align: center; color: var(--text-dim); margin-bottom: 5px;"></div>
                 <div class="points-display"><span id="customerPoints">0</span> Πόντοι</div>
                 
                 <div class="actions-grid">
-                    <button class="btn-action btn-add" onclick="addPoints(1)">+1 Πόντος</button>
-                    <button class="btn-action btn-redeem" onclick="redeemPoints()">Εξαργύρωση</button>
+                    <button class="btn-action btn-add" onclick="updatePoints(1)">+1 Πόντος</button>
+                    <button class="btn-action btn-redeem" onclick="updatePoints(-10)">Εξαργύρωση (-10)</button>
                 </div>
+            </div>
+
+            <!-- Φόρμα Δημιουργίας Νέου Πελάτη (Αν δεν υπάρχει) -->
+            <div id="newUserSection" style="display:none;" class="new-user-box">
+                <p style="color: #e5c158; font-size: 14px; text-align: center; margin: 5px 0 10px 0;">Ο αριθμός δεν βρέθηκε. Καταχώρηση νέου πελάτη:</p>
+                <label for="newNameInput">Όνομα Πελάτη:</label>
+                <input type="text" id="newNameInput" placeholder="Ονοματεπώνυμο">
+                <button class="btn" onclick="registerCustomer()" style="background: #4caf50; color: #fff;">Εγγραφή & Προσθήκη</button>
             </div>
         </div>
     </div>
 
     <script>
-        // Εδώ συνδέεσαι κανονικά με τη Supabase σου (Βάλτε τα δικά σας στοιχεία αν χρειαστεί)
-        const SUPABASE_URL = 'https://YOUR_SUPABASE_PROJECT.supabase.co';
-        const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
+        // Σύνδεση με τη βάση Supabase
+        const SUPABASE_URL = 'https://pksewldotozfgsewweha.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBrc2V3bGRvdG96ZmdzZXd3ZWhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjMyNzIzOTd9...';
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        let currentCustomer = null;
+        let activeCustomer = null;
 
         async function searchCustomer() {
             const phone = document.getElementById('phoneInput').value.trim();
@@ -61,30 +72,81 @@
                 return;
             }
 
-            // Παράδειγμα διασύνδεσης (προσαρμόζεται ανάλογα με τον πίνακα στη Supabase σου)
-            // Εδώ προσομοιώνουμε την ανάγνωση/εγγραφή για άμεση απόκριση στο ταμείο:
-            currentCustomer = { phone: phone, name: 'Πελάτης ' + phone.slice(-4), points: 5 };
+            // Απόκρυψη προηγούμενων καρτελών μέχρι να βρούμε τα δεδομένα
+            document.getElementById('customerSection').style.display = 'none';
+            document.getElementById('newUserSection').style.display = 'none';
+
+            let { data, error } = await supabaseClient
+                .from('customers')
+                .select('*')
+                .eq('phone', phone)
+                .single();
+
+            if (error || !data) {
+                // Αν δεν υπάρχει, εμφανίζουμε τη φόρμα εγγραφής νέου πελάτη
+                document.getElementById('newUserSection').style.display = 'block';
+            } else {
+                activeCustomer = data;
+                document.getElementById('customerName').innerText = activeCustomer.name;
+                document.getElementById('customerPhone').innerText = activeCustomer.phone;
+                document.getElementById('customerPoints').innerText = activeCustomer.points;
+                document.getElementById('customerSection').style.display = 'block';
+            }
+        }
+
+        async function registerCustomer() {
+            const phone = document.getElementById('phoneInput').value.trim();
+            const name = document.getElementById('newNameInput').value.trim();
             
-            document.getElementById('customerName').innerText = currentCustomer.name;
-            document.getElementById('customerPoints').innerText = currentCustomer.points;
-            document.getElementById('customerSection').style.display = 'block';
-        }
-
-        function addPoints(amount) {
-            if (!currentCustomer) return;
-            currentCustomer.points += amount;
-            document.getElementById('customerPoints').innerText = currentCustomer.points;
-            alert('Προστέθηκε 1 πόντος επιτυχώς!');
-        }
-
-        function redeemPoints() {
-            if (!currentCustomer || currentCustomer.points < 10) {
-                alert('Ο πελάτης δεν έχει αρκετούς πόντους για εξαργύρωση (απαιτούνται 10).');
+            if (!name) {
+                alert('Παρακαλώ συμπληρώστε το όνομα του πελάτη.');
                 return;
             }
-            currentCustomer.points -= 10;
-            document.getElementById('customerPoints').innerText = currentCustomer.points;
-            alert('Η εξαργύρωση ολοκληρώθηκε!');
+
+            let { data, error } = await supabaseClient
+                .from('customers')
+                .insert([{ phone: phone, name: name, points: 1 }]) // Ξεκινάει αυτόματα με 1 πόντο στην εγγραφή
+                .select()
+                .single();
+
+            if (error) {
+                alert('Σφάλμα κατά την εγγραφή στη βάση.');
+                return;
+            }
+
+            activeCustomer = data;
+            document.getElementById('customerName').innerText = activeCustomer.name;
+            document.getElementById('customerPhone').innerText = activeCustomer.phone;
+            document.getElementById('customerPoints').innerText = activeCustomer.points;
+            
+            document.getElementById('newUserSection').style.display = 'none';
+            document.getElementById('customerSection').style.display = 'block';
+            document.getElementById('newNameInput').value = '';
+            alert('Ο πελάτης εγράφη επιτυχώς και προστέθηκε 1 πόντος!');
+        }
+
+        async function updatePoints(amount) {
+            if (!activeCustomer) return;
+            
+            const newPoints = activeCustomer.points + amount;
+            if (newPoints < 0) {
+                alert('Ο πελάτης δεν έχει αρκετούς πόντους για εξαργύρωση.');
+                return;
+            }
+
+            let { error } = await supabaseClient
+                .from('customers')
+                .update({ points: newPoints })
+                .eq('phone', activeCustomer.phone);
+
+            if (error) {
+                alert('Σφάλμα ενημέρωσης πόντων.');
+                return;
+            }
+
+            activeCustomer.points = newPoints;
+            document.getElementById('customerPoints').innerText = activeCustomer.points;
+            alert(amount > 0 ? 'Προστέθηκε 1 πόντος επιτυχώς!' : 'Η εξαργύρωση ολοκληρώθηκε!');
         }
     </script>
 
