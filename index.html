@@ -21,7 +21,6 @@
         .btn-action { padding: 12px; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; color: #fff; font-size: 15px; }
         .btn-add { background: var(--success); }
         .btn-redeem { background: var(--danger); }
-        .new-user-box { margin-top: 10px; border-top: 1px dashed #444; padding-top: 12px; }
     </style>
 </head>
 <body>
@@ -33,9 +32,9 @@
             
             <label for="phoneInput">Κινητό Τηλέφωνο Πελάτη:</label>
             <input type="tel" id="phoneInput" placeholder="π.χ. 6912345678" maxlength="10">
-            <button class="btn" onclick="searchCustomer()">Αναζήτηση Πελάτη</button>
+            <button class="btn" onclick="searchCustomer()">Αναζήτηση / Εγγραφή</button>
 
-            <!-- Καρτέλα Εμφάνισης Στοιχείων Πελάτη -->
+            <!-- Εμφανίζεται σταθερά μόλις βρεθεί ή δημιουργηθεί πελάτης -->
             <div id="customerSection" style="display:none;" class="customer-info">
                 <div id="customerName" style="font-weight: bold; font-size: 18px; text-align: center; color: #fff;"></div>
                 <div id="customerPhone" style="font-size: 13px; text-align: center; color: var(--text-dim); margin-bottom: 5px;"></div>
@@ -46,21 +45,12 @@
                     <button class="btn-action btn-redeem" onclick="updatePoints(-10)">Εξαργύρωση (-10)</button>
                 </div>
             </div>
-
-            <!-- Φόρμα Δημιουργίας Νέου Πελάτη (Αν δεν υπάρχει) -->
-            <div id="newUserSection" style="display:none;" class="new-user-box">
-                <p style="color: #e5c158; font-size: 14px; text-align: center; margin: 5px 0 10px 0;">Ο αριθμός δεν βρέθηκε. Καταχώρηση νέου πελάτη:</p>
-                <label for="newNameInput">Όνομα Πελάτη:</label>
-                <input type="text" id="newNameInput" placeholder="Ονοματεπώνυμο">
-                <button class="btn" onclick="registerCustomer()" style="background: #4caf50; color: #fff;">Εγγραφή & Προσθήκη</button>
-            </div>
         </div>
     </div>
 
     <script>
-        // Σύνδεση με τη βάση Supabase
         const SUPABASE_URL = 'https://pksewldotozfgsewweha.supabase.co';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBrc2V3bGRvdG96ZmdzZXd3ZWhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjMyNzIzOTd9...';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBrc2V3bGRvdG96ZmdzZXd3ZWhhIxlcmlsZSI6ImFub24iLCJpYXQiOjE3MjMyNzIzOTd9...';
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         let activeCustomer = null;
@@ -72,10 +62,6 @@
                 return;
             }
 
-            // Απόκρυψη προηγούμενων καρτελών μέχρι να βρούμε τα δεδομένα
-            document.getElementById('customerSection').style.display = 'none';
-            document.getElementById('newUserSection').style.display = 'none';
-
             let { data, error } = await supabaseClient
                 .from('customers')
                 .select('*')
@@ -83,54 +69,39 @@
                 .single();
 
             if (error || !data) {
-                // Αν δεν υπάρχει, εμφανίζουμε τη φόρμα εγγραφής νέου πελάτη
-                document.getElementById('newUserSection').style.display = 'block';
+                const newName = prompt('Ο πελάτης δεν βρέθηκε. Πληκτρολογήστε όνομα πελάτη:', 'Πελάτης');
+                if (!newName) return;
+
+                let { data: newData, err } = await supabaseClient
+                    .from('customers')
+                    .insert([{ phone: phone, name: newName, points: 0 }])
+                    .select()
+                    .single();
+
+                if (err) {
+                    alert('Σφάλμα αποθήκευσης στη βάση.');
+                    return;
+                }
+                activeCustomer = newData;
             } else {
                 activeCustomer = data;
-                document.getElementById('customerName').innerText = activeCustomer.name;
-                document.getElementById('customerPhone').innerText = activeCustomer.phone;
-                document.getElementById('customerPoints').innerText = activeCustomer.points;
-                document.getElementById('customerSection').style.display = 'block';
-            }
-        }
-
-        async function registerCustomer() {
-            const phone = document.getElementById('phoneInput').value.trim();
-            const name = document.getElementById('newNameInput').value.trim();
-            
-            if (!name) {
-                alert('Παρακαλώ συμπληρώστε το όνομα του πελάτη.');
-                return;
             }
 
-            let { data, error } = await supabaseClient
-                .from('customers')
-                .insert([{ phone: phone, name: name, points: 1 }]) // Ξεκινάει αυτόματα με 1 πόντο στην εγγραφή
-                .select()
-                .single();
-
-            if (error) {
-                alert('Σφάλμα κατά την εγγραφή στη βάση.');
-                return;
-            }
-
-            activeCustomer = data;
             document.getElementById('customerName').innerText = activeCustomer.name;
             document.getElementById('customerPhone').innerText = activeCustomer.phone;
             document.getElementById('customerPoints').innerText = activeCustomer.points;
-            
-            document.getElementById('newUserSection').style.display = 'none';
             document.getElementById('customerSection').style.display = 'block';
-            document.getElementById('newNameInput').value = '';
-            alert('Ο πελάτης εγράφη επιτυχώς και προστέθηκε 1 πόντος!');
         }
 
         async function updatePoints(amount) {
-            if (!activeCustomer) return;
+            if (!activeCustomer) {
+                alert('Παρακαλώ αναζητήστε πρώτα πελάτη.');
+                return;
+            }
             
             const newPoints = activeCustomer.points + amount;
             if (newPoints < 0) {
-                alert('Ο πελάτης δεν έχει αρκετούς πόντους για εξαργύρωση.');
+                alert('Ο πελάτης δεν έχει đầy đủ πόντους για εξαργύρωση.');
                 return;
             }
 
