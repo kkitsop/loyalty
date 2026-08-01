@@ -116,6 +116,7 @@ function enterStore(m){
   $('hdr-name').textContent = state.store.name;
   $('hdr-role').textContent = m.role==='admin' ? 'Διαχειριστής' : 'Προσωπικό';
   $('btn-settings').classList.toggle('hidden', m.role!=='admin');
+  $('btn-analytics').classList.toggle('hidden', m.role!=='admin');
   screen('screen-app');
   subscribeRealtime();
   refresh();
@@ -155,7 +156,7 @@ async function refresh(){
   loader(true,'Φόρτωση δεδομένων…');
   try {
     const [c, t, s] = await Promise.all([
-      sb.from('customers').select('*').eq('store_id', state.store.id).order('created_at',{ascending:false}),
+      sb.from('customers').select('*').is('deleted_at', null).eq('store_id', state.store.id).order('created_at',{ascending:false}),
       sb.from('loyalty_txns').select('*').eq('store_id', state.store.id),
       sb.from('stores').select('*').eq('id', state.store.id).single()
     ]);
@@ -185,10 +186,15 @@ function renderCustomers(filter=''){
   list.innerHTML = rows.map(c => {
     const nm = c.name || 'Πελάτης';
     const init = (c.name ? c.name[0] : 'Π').toUpperCase();
+    const req = state.store.points_required;
+    const gifts = Math.floor((c.points||0) / req);
     return `<div class="row" data-id="${c.id}">
-      <div class="ava">${esc(init)}</div>
+      <div class="ava${gifts?' ava-gift':''}">${gifts?'🎁':esc(init)}</div>
       <div class="row-main"><b>${esc(nm)} ${esc(c.surname||'')}</b><span>${esc(c.phone||'Χωρίς τηλέφωνο')}</span></div>
-      <div class="row-pts"><b>${ICON.star} ${c.points||0}</b><span>${c.visits||0} επισκ.</span></div>
+      <div class="row-pts">
+        ${gifts?`<span class="gift-tag">Έτοιμο για δώρο${gifts>1?' ×'+gifts:''}</span>`:''}
+        <b>${ICON.star} ${c.points||0}</b><span>${c.visits||0} επισκ.</span>
+      </div>
     </div>`;
   }).join('');
   list.querySelectorAll('.row').forEach(r => r.onclick = () => openAction(r.dataset.id));
@@ -235,20 +241,24 @@ $('btn-save-cust').onclick = async () => {
 };
 
 $('btn-del').onclick = async () => {
-  if (!confirm('Οριστική διαγραφή πελάτη;')) return;
+  if (!confirm('Διαγραφή πελάτη; Το ιστορικό συναλλαγών διατηρείται.')) return;
   loader(true,'Διαγραφή…');
-  const { error } = await sb.from('customers').delete().eq('id', state.editId);
+  const { error } = await sb.from('customers').update({ deleted_at: new Date().toISOString() }).eq('id', state.editId);
   loader(false);
   if (!error){ state.customers = state.customers.filter(x => x.id !== state.editId); renderCustomers($('search').value); closeM('m-edit'); toast('Διαγράφηκε','warn'); }
   else toast('Σφάλμα διαγραφής','error');
 };
 
 /* ================= ΕΝΕΡΓΕΙΕΣ ΠΕΛΑΤΗ ================= */
+function custLevel(v){ v = v||0; if (v>=50) return {n:'VIP',c:'#7A5AF8'}; if (v>=25) return {n:'Gold',c:'#C8871F'}; if (v>=10) return {n:'Silver',c:'#8A8A8A'}; return {n:'Bronze',c:'#A0703C'}; }
+
 function openAction(id){
   const c = state.customers.find(x => String(x.id) === String(id)); if (!c) return;
   state.activeId = c.id;
   const req = state.store.points_required, disc = state.store.discount_amount;
   const pts = c.points || 0, can = pts >= req, pct = Math.min(100, Math.round(pts / req * 100));
+  const gifts = Math.floor(pts / req);
+  const lvl = custLevel(c.visits);
   const nm = c.name ? `${c.name} ${c.surname||''}` : `Πελάτης (${c.phone||'—'})`;
   $('act-name').textContent = nm.trim();
 
@@ -257,7 +267,12 @@ function openAction(id){
       <div class="in"><b>${pts}</b><span>πόντοι</span></div>
     </div>
     <div class="reward-note ${can?'ready':'progress'}">
-      ${can ? `${ICON.gift} <b>Δικαιούται δώρο ${esc(fmt(disc))}</b>` : `Ακόμη <b>${req-pts}</b> για δώρο ${esc(fmt(disc))}`}
+      ${can ? `${ICON.gift} <b>Δικαιούται δώρο ${esc(fmt(disc))}</b>${gifts>1?`<span class="gifts-avail">Διαθέσιμα ×${gifts}</span>`:''}` : `Ακόμη <b>${req-pts}</b> για δώρο ${esc(fmt(disc))}`}
+    </div>
+    <div class="cust-meta">
+      <span><span class="lvl" style="background:${lvl.c}">${lvl.n}</span></span>
+      <span><b>${c.visits||0}</b> επισκέψεις</span>
+      <span>Σύνολο αγορών <b>${esc(fmt(c.total_spent))}</b></span>
     </div>
     <button class="btn btn-green" id="a-redeem" ${can?'':'disabled'}>Εξαργύρωση δώρου (−${req} ${ICON.star})</button>
 
@@ -287,18 +302,41 @@ async function logTx(type, pts, eur, custId){
   if (data) state.txns.push(data);
 }
 
+let undoTimer = null;
 async function addPoints(coffees, euros){
   const c = state.customers.find(x => String(x.id) === String(state.activeId)); if (!c) return;
   const req = state.store.points_required;
-  const oldP = c.points||0, newP = oldP + coffees;
-  c.points = newP; c.visits = (c.visits||0)+1; c.total_spent = (c.total_spent||0)+euros;
+  const prev = { points: c.points||0, visits: c.visits||0, total: c.total_spent||0 };
+  const newP = prev.points + coffees;
+  c.points = newP; c.visits = prev.visits + 1; c.total_spent = prev.total + euros;
   openAction(c.id); renderCustomers($('search').value);
   const { error } = await sb.from('customers')
     .update({ points:newP, visits:c.visits, total_spent:c.total_spent }).eq('id', c.id);
-  if (error){ toast('Αποτυχία συγχρονισμού','error'); return; }
+  if (error){ c.points=prev.points; c.visits=prev.visits; c.total_spent=prev.total; openAction(c.id); toast('Αποτυχία συγχρονισμού','error'); return; }
   await logTx('ADD_PTS', coffees, euros, c.id);
-  if (Math.floor(oldP/req) < Math.floor(newP/req)) openM('m-reward');
-  else toast(`+${coffees} πόντοι`,'success');
+  if (Math.floor(prev.points/req) < Math.floor(newP/req)) openM('m-reward');
+  undoAddToast(c.id, coffees, euros, prev);
+}
+
+/* Undo 5 δευτ. — αντί να σβήσει την κίνηση (append-only), γράφει αντίστροφη κίνηση */
+function undoAddToast(custId, coffees, euros, prev){
+  clearTimeout(undoTimer);
+  const el = document.createElement('div');
+  el.className = 'toast success undo-toast';
+  el.innerHTML = `<span>+${coffees} πόντοι</span><button>Αναίρεση</button>`;
+  $('toasts').appendChild(el);
+  const kill = () => { el.style.opacity='0'; el.style.transform='translateY(-8px)'; setTimeout(()=>el.remove(),320); };
+  el.querySelector('button').onclick = async () => {
+    clearTimeout(undoTimer); kill(); closeM('m-reward');
+    const c = state.customers.find(x => String(x.id) === String(custId)); if (!c) return;
+    c.points = prev.points; c.visits = prev.visits; c.total_spent = prev.total;
+    if (state.activeId === custId) openAction(custId);
+    renderCustomers($('search').value);
+    await sb.from('customers').update({ points:prev.points, visits:prev.visits, total_spent:prev.total }).eq('id', custId);
+    await logTx('ADD_PTS', -coffees, -euros, custId);
+    toast('Αναιρέθηκε','warn');
+  };
+  undoTimer = setTimeout(kill, 5000);
 }
 
 async function redeem(){
@@ -331,6 +369,23 @@ function drawStats(period){
     if (t.type==='REDEEM') red++;
   }});
   $('s-new').textContent = nw; $('s-pts').textContent = pts; $('s-red').textContent = red; $('s-eur').textContent = fmt(eur);
+  drawChart();
+}
+
+function drawChart(){
+  const now = new Date(); const days = [];
+  for (let i=6; i>=0; i--){ days.push({ d:new Date(now.getFullYear(),now.getMonth(),now.getDate()-i), pts:0 }); }
+  state.txns.forEach(t => {
+    if (t.type !== 'ADD_PTS') return;
+    const dt = new Date(t.created_at);
+    const day = days.find(x => x.d.getFullYear()===dt.getFullYear() && x.d.getMonth()===dt.getMonth() && x.d.getDate()===dt.getDate());
+    if (day) day.pts += t.points;
+  });
+  const max = Math.max(1, ...days.map(x => Math.max(0, x.pts)));
+  const wd = ['Κυ','Δε','Τρ','Τε','Πε','Πα','Σα'];
+  $('stat-chart').innerHTML =
+    `<div class="bars">${days.map(x => { const v=Math.max(0,x.pts), h=Math.round(v/max*100); return `<div class="bar ${v?'has':''}" style="height:${Math.max(3,h)}%">${v?`<span>${v}</span>`:''}</div>`; }).join('')}</div>` +
+    `<div class="lbls">${days.map(x => `<div>${wd[x.d.getDay()]}</div>`).join('')}</div>`;
 }
 
 /* ================= ΡΥΘΜΙΣΕΙΣ (admin) ================= */
@@ -528,13 +583,42 @@ function silentSync(){
   clearTimeout(syncTimer);
   syncTimer = setTimeout(async () => {
     const [c,t] = await Promise.all([
-      sb.from('customers').select('*').eq('store_id', state.store.id).order('created_at',{ascending:false}),
+      sb.from('customers').select('*').is('deleted_at', null).eq('store_id', state.store.id).order('created_at',{ascending:false}),
       sb.from('loyalty_txns').select('*').eq('store_id', state.store.id)
     ]);
     if (c.data) state.customers = c.data;
     if (t.data) state.txns = t.data;
     renderCustomers($('search').value);
   }, 600);
+}
+
+/* ================= ANALYTICS (admin) ================= */
+$('btn-analytics').onclick = openAnalytics;
+async function openAnalytics(){
+  openM('m-analytics');
+  const cust = state.customers, txns = state.txns;
+  const totalSpent = cust.reduce((s,c)=>s+Number(c.total_spent||0),0);
+  $('an-avg').textContent = fmt(cust.length ? totalSpent/cust.length : 0);
+  $('an-ret').textContent = (cust.length ? Math.round(cust.filter(c=>(c.visits||0)>=2).length / cust.length * 100) : 0) + '%';
+  const redeemed = new Set(txns.filter(t=>t.type==='REDEEM').map(t=>t.customer_id));
+  $('an-conv').textContent = (cust.length ? Math.round(redeemed.size / cust.length * 100) : 0) + '%';
+  $('an-gifts').textContent = txns.filter(t=>t.type==='REDEEM').length;
+
+  const topC = [...cust].sort((a,b)=>Number(b.total_spent||0)-Number(a.total_spent||0)).slice(0,5);
+  const medal = (i)=> i===0?'gold':i===1?'silver':i===2?'bronze':'';
+  $('an-top-cust').innerHTML = topC.length ? topC.map((c,i)=>{
+    const nm = ((c.name||'Πελάτης')+' '+(c.surname||'')).trim();
+    return `<div class="rank"><div class="n ${medal(i)}">${i+1}</div><div class="rank-main"><b>${esc(nm)}</b><span>${c.visits||0} επισκ. · ${c.points||0} πόντοι</span></div><div class="val">${esc(fmt(c.total_spent))}</div></div>`;
+  }).join('') : '<div class="empty" style="padding:16px">Χωρίς δεδομένα</div>';
+
+  const { data: members } = await sb.from('memberships').select('user_id,display_name').eq('store_id', state.store.id);
+  const nameOf = {}; (members||[]).forEach(m=>nameOf[m.user_id]=m.display_name||'Μέλος');
+  const counts = {};
+  txns.forEach(t=>{ if(t.type==='ADD_PTS' && t.created_by && t.points>0) counts[t.created_by]=(counts[t.created_by]||0)+1; });
+  const topS = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  $('an-top-staff').innerHTML = topS.length ? topS.map(([uid,n],i)=>
+    `<div class="rank"><div class="n ${medal(i)}">${i+1}</div><div class="rank-main"><b>${esc(nameOf[uid]||'Μέλος')}</b><span>καταχωρήσεις πόντων</span></div><div class="val">${n}</div></div>`
+  ).join('') : '<div class="empty" style="padding:16px">Χωρίς δεδομένα</div>';
 }
 
 /* modal close buttons + backdrop */
