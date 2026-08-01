@@ -340,6 +340,18 @@ $('btn-settings').onclick = () => {
   $('set-disc').value = state.store.discount_amount;
   renderStaff(); openM('m-settings');
 };
+
+/* Ορισμός δικού σου κωδικού εισόδου (αντί για τον τυχαίο) */
+$('btn-save-code').onclick = async () => {
+  const code = ($('set-newcode').value || '').trim().toUpperCase().replace(/\s+/g,'');
+  if (!/^[A-Z0-9]{4,12}$/.test(code)){ toast('Κωδικός 4-12 χαρακτήρες (A-Z, 0-9)','warn'); return; }
+  loader(true,'Αλλαγή κωδικού…');
+  const { error } = await sb.from('stores').update({ join_code: code }).eq('id', state.store.id);
+  loader(false);
+  if (error){ toast(error.code === '23505' ? 'Ο κωδικός χρησιμοποιείται ήδη αλλού' : 'Σφάλμα αλλαγής','error'); return; }
+  state.store.join_code = code; $('set-code').textContent = code; $('set-newcode').value = '';
+  toast('Ο κωδικός εισόδου άλλαξε','success');
+};
 $('btn-save-set').onclick = async () => {
   const req = parseInt($('set-req').value), disc = parseFloat($('set-disc').value);
   if (isNaN(req)||req<1){ toast('Μη έγκυροι πόντοι','warn'); return; }
@@ -350,6 +362,28 @@ $('btn-save-set').onclick = async () => {
   if (error){ toast('Σφάλμα','error'); return; }
   state.store.points_required = req; state.store.discount_amount = disc;
   toast('Οι ρυθμίσεις αποθηκεύτηκαν','success'); closeM('m-settings');
+};
+
+/* Αλλαγή καταστήματος — επιστροφή στην οθόνη επιλογής/δημιουργίας χωρίς αποσύνδεση */
+$('btn-switch-store').onclick = () => {
+  if (state.channel){ sb.removeChannel(state.channel); state.channel = null; }
+  localStorage.removeItem(STORE_KEY);
+  closeM('m-settings');
+  renderStorePicker(); screen('screen-stores');
+};
+
+/* Διαγραφή καταστήματος (μόνο Διαχειριστής, μέσω RLS) */
+$('btn-delete-store').onclick = async () => {
+  if (!confirm(`Οριστική διαγραφή του καταστήματος «${state.store.name}»;\n\nΘα διαγραφούν ΟΛΟΙ οι πελάτες, πόντοι και το ιστορικό αυτού του καταστήματος. Δεν αναιρείται.`)) return;
+  loader(true,'Διαγραφή…');
+  const { error } = await sb.from('stores').delete().eq('id', state.store.id);
+  loader(false);
+  if (error){ toast('Σφάλμα διαγραφής — χρειάζεσαι ρόλο Διαχειριστή','error'); return; }
+  if (state.channel){ sb.removeChannel(state.channel); state.channel = null; }
+  localStorage.removeItem(STORE_KEY); state.store = null;
+  closeM('m-settings');
+  toast('Το κατάστημα διαγράφηκε','warn');
+  await loadMemberships();
 };
 
 async function renderStaff(){
