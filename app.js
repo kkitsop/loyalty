@@ -33,6 +33,57 @@ function toast(msg, type='info'){
 const STORE_KEY = 'kofi_loyalty_store';
 let state = { user:null, memberships:[], store:null, role:'staff', customers:[], txns:[], activeId:null, editId:null, channel:null };
 
+/* ================= OFFLINE QUEUE (idempotent sync) ================= */
+const uuid = () => (crypto.randomUUID ? crypto.randomUUID()
+  : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, ch => { const r=Math.random()*16|0, v=ch==='x'?r:(r&0x3|0x8); return v.toString(16); }));
+
+let opQueue = [];
+const qKey = () => 'kofi_q_' + (state.store ? state.store.id : 'none');
+function loadQueue(){ try { opQueue = JSON.parse(localStorage.getItem(qKey()) || '[]'); } catch(_) { opQueue = []; } updateNetUI(); }
+function saveQueue(){ try { localStorage.setItem(qKey(), JSON.stringify(opQueue)); } catch(_){} updateNetUI(); }
+function enqueue(op){ opQueue.push(op); saveQueue(); }
+
+function custRow(c){ return { id:c.id, store_id:state.store.id, name:c.name??null, surname:c.surname??null, phone:c.phone??null,
+  points:c.points||0, visits:c.visits||0, total_spent:c.total_spent||0, deleted_at:c.deleted_at??null, created_by:c.created_by||state.user.id }; }
+function saveCustomerRow(c){ pushOp({ k:'cust', row: custRow(c) }); }
+
+async function runOp(op){
+  try {
+    let error;
+    if (op.k==='cust') ({ error } = await sb.from('customers').upsert(op.row));
+    else               ({ error } = await sb.from('loyalty_txns').insert(op.row));
+    if (!error) return 'ok';
+    if (op.k==='txn' && error.code==='23505') return 'ok';   // ήδη καταχωρημένη (idempotent)
+    return error.code ? 'drop' : 'retry';                    // PG error=μόνιμο · αλλιώς δικτύου
+  } catch(_) { return 'retry'; }                             // αποτυχία δικτύου -> ξαναδοκίμασε
+}
+async function pushOp(op){
+  if (!navigator.onLine){ enqueue(op); return; }
+  const r = await runOp(op);
+  if (r==='retry') enqueue(op);
+}
+let flushing = false;
+async function flushQueue(){
+  if (flushing || !navigator.onLine || !opQueue.length) return;
+  flushing = true;
+  while (opQueue.length && navigator.onLine){
+    const r = await runOp(opQueue[0]);
+    if (r==='retry') break;
+    opQueue.shift(); saveQueue();
+  }
+  flushing = false; updateNetUI();
+}
+function updateNetUI(){
+  const el = document.getElementById('net-indicator'); if (!el) return;
+  const off = !navigator.onLine, pend = opQueue.length;
+  if (off){ el.className='net off'; el.textContent = pend ? `Εκτός σύνδεσης · ${pend} σε αναμονή` : 'Εκτός σύνδεσης — οι αλλαγές θα συγχρονιστούν'; el.style.display='block'; }
+  else if (pend){ el.className='net sync'; el.textContent = `Συγχρονισμός… ${pend} σε αναμονή`; el.style.display='block'; }
+  else { el.style.display='none'; }
+}
+window.addEventListener('online',  () => { updateNetUI(); flushQueue(); });
+window.addEventListener('offline', updateNetUI);
+setInterval(() => { if (opQueue.length) flushQueue(); }, 15000);
+
 /* ================= AUTH ================= */
 async function boot(){
   if (!configured){
@@ -117,6 +168,7 @@ function enterStore(m){
   $('hdr-role').textContent = m.role==='admin' ? 'Διαχειριστής' : 'Προσωπικό';
   $('btn-settings').classList.toggle('hidden', m.role!=='admin');
   $('btn-analytics').classList.toggle('hidden', m.role!=='admin');
+  loadQueue();
   screen('screen-app');
   subscribeRealtime();
   refresh();
@@ -161,12 +213,11 @@ async function refresh(){
       sb.from('stores').select('*').eq('id', state.store.id).single()
     ]);
     if (c.error) throw c.error;
-    state.customers = c.data || [];
-    state.txns = t.data || [];
+    if (!opQueue.length){ state.customers = c.data || []; state.txns = t.data || []; }
     if (s.data) state.store = s.data;
     renderCustomers($('search').value);
-  } catch(e){ console.error(e); toast('Σφάλμα σύνδεσης με το cloud','error'); }
-  loader(false);
+  } catch(e){ console.error(e); }
+  loader(false); updateNetUI(); flushQueue();
 }
 
 function renderCustomers(filter=''){
@@ -219,34 +270,33 @@ function openEdit(){
   openM('m-edit');
 }
 
-$('btn-save-cust').onclick = async () => {
+$('btn-save-cust').onclick = () => {
   const name = $('edit-name').value.trim(), phone = $('edit-phone').value.trim();
   if (!name && !phone){ toast('Χρειάζεται όνομα ή τηλέφωνο','warn'); return; }
   const payload = { name, surname:$('edit-surname').value.trim(), phone };
-  loader(true,'Αποθήκευση…');
-  if (state.editId === null){
-    const { data, error } = await sb.from('customers')
-      .insert({ ...payload, store_id:state.store.id, created_by:state.user.id }).select().single();
-    if (!error){
-      state.customers.unshift(data);
-      await logTx('NEW_CUST', 0, 0, data.id);
-      toast('Ο πελάτης προστέθηκε','success');
-    } else toast(error.code==='23505' ? 'Υπάρχει ήδη πελάτης με αυτό το τηλέφωνο' : 'Σφάλμα προσθήκης','error');
-  } else {
-    const { error } = await sb.from('customers').update(payload).eq('id', state.editId);
-    if (!error){ const c = state.customers.find(x => x.id === state.editId); if (c) Object.assign(c, payload); toast('Ενημερώθηκε','success'); }
-    else toast('Σφάλμα ενημέρωσης','error');
+  if (phone && state.customers.some(x => x.phone===phone && !x.deleted_at && x.id!==state.editId)){
+    toast('Υπάρχει ήδη πελάτης με αυτό το τηλέφωνο','error'); return;
   }
-  loader(false); $('search').value=''; renderCustomers(''); closeM('m-edit');
+  if (state.editId === null){
+    const c = { id: uuid(), store_id:state.store.id, ...payload, points:0, visits:0, total_spent:0, deleted_at:null, created_by:state.user.id, created_at:new Date().toISOString() };
+    state.customers.unshift(c);
+    saveCustomerRow(c);
+    logTx('NEW_CUST', 0, 0, c.id);
+    toast('Ο πελάτης προστέθηκε','success');
+  } else {
+    const c = state.customers.find(x => x.id === state.editId);
+    if (c){ Object.assign(c, payload); saveCustomerRow(c); }
+    toast('Ενημερώθηκε','success');
+  }
+  $('search').value=''; renderCustomers(''); closeM('m-edit');
 };
 
-$('btn-del').onclick = async () => {
+$('btn-del').onclick = () => {
   if (!confirm('Διαγραφή πελάτη; Το ιστορικό συναλλαγών διατηρείται.')) return;
-  loader(true,'Διαγραφή…');
-  const { error } = await sb.from('customers').update({ deleted_at: new Date().toISOString() }).eq('id', state.editId);
-  loader(false);
-  if (!error){ state.customers = state.customers.filter(x => x.id !== state.editId); renderCustomers($('search').value); closeM('m-edit'); toast('Διαγράφηκε','warn'); }
-  else toast('Σφάλμα διαγραφής','error');
+  const c = state.customers.find(x => x.id === state.editId);
+  if (c){ c.deleted_at = new Date().toISOString(); saveCustomerRow(c); }
+  state.customers = state.customers.filter(x => x.id !== state.editId);
+  renderCustomers($('search').value); closeM('m-edit'); toast('Διαγράφηκε','warn');
 };
 
 /* ================= ΕΝΕΡΓΕΙΕΣ ΠΕΛΑΤΗ ================= */
@@ -296,10 +346,10 @@ function openAction(id){
   openM('m-action');
 }
 
-async function logTx(type, pts, eur, custId){
-  const tx = { store_id:state.store.id, customer_id:custId||null, type, points:pts||0, amount:eur||0, created_by:state.user.id };
-  const { data } = await sb.from('loyalty_txns').insert(tx).select().single();
-  if (data) state.txns.push(data);
+function logTx(type, pts, eur, custId){
+  const row = { client_id: uuid(), store_id:state.store.id, customer_id:custId||null, type, points:pts||0, amount:eur||0, created_by:state.user.id };
+  state.txns.push({ ...row, created_at: new Date().toISOString() });
+  pushOp({ k:'txn', row });
 }
 
 let undoTimer = null;
@@ -310,10 +360,8 @@ async function addPoints(coffees, euros){
   const newP = prev.points + coffees;
   c.points = newP; c.visits = prev.visits + 1; c.total_spent = prev.total + euros;
   openAction(c.id); renderCustomers($('search').value);
-  const { error } = await sb.from('customers')
-    .update({ points:newP, visits:c.visits, total_spent:c.total_spent }).eq('id', c.id);
-  if (error){ c.points=prev.points; c.visits=prev.visits; c.total_spent=prev.total; openAction(c.id); toast('Αποτυχία συγχρονισμού','error'); return; }
-  await logTx('ADD_PTS', coffees, euros, c.id);
+  saveCustomerRow(c);
+  logTx('ADD_PTS', coffees, euros, c.id);
   if (Math.floor(prev.points/req) < Math.floor(newP/req)) openM('m-reward');
   undoAddToast(c.id, coffees, euros, prev);
 }
@@ -332,8 +380,8 @@ function undoAddToast(custId, coffees, euros, prev){
     c.points = prev.points; c.visits = prev.visits; c.total_spent = prev.total;
     if (state.activeId === custId) openAction(custId);
     renderCustomers($('search').value);
-    await sb.from('customers').update({ points:prev.points, visits:prev.visits, total_spent:prev.total }).eq('id', custId);
-    await logTx('ADD_PTS', -coffees, -euros, custId);
+    saveCustomerRow(c);
+    logTx('ADD_PTS', -coffees, -euros, custId);
     toast('Αναιρέθηκε','warn');
   };
   undoTimer = setTimeout(kill, 5000);
@@ -345,9 +393,8 @@ async function redeem(){
   if ((c.points||0) < req){ toast('Δεν επαρκούν οι πόντοι','error'); return; }
   const newP = c.points - req; c.points = newP;
   openAction(c.id); renderCustomers($('search').value);
-  const { error } = await sb.from('customers').update({ points:newP }).eq('id', c.id);
-  if (error){ toast('Αποτυχία εξαργύρωσης','error'); return; }
-  await logTx('REDEEM', req, 0, c.id);
+  saveCustomerRow(c);
+  logTx('REDEEM', req, 0, c.id);
   toast('Επιτυχής εξαργύρωση!','success');
 }
 
@@ -582,6 +629,7 @@ function silentSync(){
   if (document.querySelector('.modal.on')) return; // μη διακόπτεις ενεργή ενέργεια
   clearTimeout(syncTimer);
   syncTimer = setTimeout(async () => {
+    if (opQueue.length || !navigator.onLine) return;
     const [c,t] = await Promise.all([
       sb.from('customers').select('*').is('deleted_at', null).eq('store_id', state.store.id).order('created_at',{ascending:false}),
       sb.from('loyalty_txns').select('*').eq('store_id', state.store.id)

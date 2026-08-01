@@ -215,3 +215,8 @@ input{font-size:16px} /* απoφυγή zoom σε iOS */
 .hero{width:150px;height:150px;margin:0 auto 6px;display:block}
 .brand.big{font-size:30px}
 .brand.big small{font-size:12px;letter-spacing:3px;margin-top:6px}
+
+/* --- offline indicator --- */
+.net{text-align:center;font-size:12px;font-weight:800;padding:7px 10px;color:#fff;letter-spacing:.2px}
+.net.off{background:var(--red)}
+.net.sync{background:var(--amber)}
