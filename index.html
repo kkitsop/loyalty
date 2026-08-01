@@ -1,118 +1,174 @@
 <!DOCTYPE html>
 <html lang="el">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KOFI Project - Σύστημα Loyalty</title>
-    <style>
-        :root { --bg: #121212; --card: #1e1e1e; --accent: #d4af37; --text: #fff; --text-dim: #aaa; --success: #4caf50; --danger: #e64a19; }
-        body { font-family: Arial, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 15px; display: flex; justify-content: center; }
-        .container { width: 100%; max-width: 500px; }
-        .card { background: var(--card); padding: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); margin-bottom: 15px; }
-        h1, h2 { color: var(--accent); text-align: center; margin-top: 0; }
-        label { font-size: 14px; color: var(--text-dim); }
-        input { width: 100%; padding: 12px; margin: 6px 0 12px 0; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
-        .btn { background: var(--accent); color: #121212; border: none; padding: 12px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; width: 100%; }
-        .btn:hover { background: #e5c158; }
-        .customer-info { background: #252525; padding: 15px; border-radius: 8px; margin-top: 15px; border: 1px solid #333; }
-        .points-display { font-size: 28px; color: var(--accent); font-weight: bold; text-align: center; margin: 10px 0; }
-        .actions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
-        .btn-action { padding: 12px; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; color: #fff; font-size: 15px; }
-        .btn-add { background: var(--success); }
-        .btn-redeem { background: var(--danger); }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#221812">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+<title>KOFI Loyalty</title>
 </head>
 <body>
 
-    <div class="container">
-        <div class="card">
-            <h1>☕ KOFI Project</h1>
-            <h2>Σύστημα Loyalty Ταμείου</h2>
-            
-            <label for="phoneInput">Κινητό Τηλέφωνο Πελάτη:</label>
-            <input type="tel" id="phoneInput" placeholder="π.χ. 6912345678" maxlength="10">
-            <button class="btn" onclick="searchCustomer()">Αναζήτηση / Εγγραφή</button>
+<div class="toasts" id="toasts"></div>
+<div class="loader" id="loader"><div class="spin"></div><b id="loader-txt">Σύνδεση…</b></div>
 
-            <!-- Καρτέλα Πελάτη (Εμφανίζεται αμέσως μόλις βρεθεί ή δημιουργηθεί) -->
-            <div id="customerSection" style="display:none;" class="customer-info">
-                <div id="customerName" style="font-weight: bold; font-size: 18px; text-align: center; color: #fff;"></div>
-                <div id="customerPhone" style="font-size: 13px; text-align: center; color: var(--text-dim); margin-bottom: 5px;"></div>
-                <div class="points-display"><span id="customerPoints">0</span> Πόντοι</div>
-                
-                <div class="actions-grid">
-                    <button class="btn-action btn-add" onclick="updatePoints(1)">+1 Πόντος</button>
-                    <button class="btn-action btn-redeem" onclick="updatePoints(-10)">Εξαργύρωση (-10)</button>
-                </div>
-            </div>
-        </div>
+<!-- ============ ΣΥΝΔΕΣΗ ============ -->
+<section id="screen-auth" class="screen">
+  <div class="center">
+    <div class="logo">
+      <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>
     </div>
+    <div class="brand">KOFI Loyalty<small>Ταμείο</small></div>
+    <div class="auth-box">
+      <p class="lede">Σύνδεση για πρόσβαση στο πελατολόγιο και τους πόντους του καταστήματος.</p>
+      <button class="btn btn-google" id="btn-google">
+        <svg width="22" height="22" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+        Σύνδεση με Google
+      </button>
+      <div class="divider">Ή ΜΕ EMAIL</div>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="auth-email" placeholder="name@example.com" autocomplete="email">
+      </div>
+      <button class="btn btn-dark" id="btn-magic">Αποστολή συνδέσμου σύνδεσης</button>
+    </div>
+  </div>
+</section>
 
-    <script>
-        let activeCustomer = null;
+<!-- ============ ΚΑΤΑΣΤΗΜΑ (επιλογή / δημιουργία / είσοδος) ============ -->
+<section id="screen-stores" class="screen">
+  <div class="center">
+    <div class="logo">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1-5h16l1 5"/><path d="M4 9v10a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9"/><path d="M9 22V12h6v10"/></svg>
+    </div>
+    <div class="brand" style="margin-bottom:24px">Κατάστημα</div>
+    <div class="auth-box">
+      <div id="store-picker" class="hidden">
+        <div class="eyebrow" style="text-align:left">Τα καταστήματά σου</div>
+        <div id="store-list"></div>
+        <div class="divider">Ή</div>
+      </div>
+      <div class="field">
+        <label>Δημιουργία νέου καταστήματος</label>
+        <input type="text" id="store-name" placeholder="Όνομα καταστήματος">
+      </div>
+      <button class="btn btn-amber" id="btn-create-store" style="margin-bottom:22px">Δημιουργία καταστήματος</button>
+      <div class="field">
+        <label>Είσοδος με κωδικό</label>
+        <input type="text" id="join-code" placeholder="π.χ. A1B2C3" maxlength="6" style="text-transform:uppercase;letter-spacing:4px;text-align:center;font-weight:800">
+      </div>
+      <button class="btn btn-ghost" id="btn-join-store" style="margin-bottom:22px">Είσοδος σε κατάστημα</button>
+      <button class="btn btn-ghost" id="btn-signout-2" style="border:none;color:var(--muted)">Αποσύνδεση</button>
+    </div>
+  </div>
+</section>
 
-        function getCustomers() {
-            const data = localStorage.getItem('kofi_customers');
-            return data ? JSON.parse(data) : {};
-        }
+<!-- ============ ΚΥΡΙΑ ΕΦΑΡΜΟΓΗ ============ -->
+<section id="screen-app" class="screen">
+  <header class="hdr">
+    <div class="cup"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg></div>
+    <div class="hdr-store"><b id="hdr-name">—</b><span id="hdr-role">—</span></div>
+    <button class="icon-btn" id="btn-stats" title="Στατιστικά"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></button>
+    <button class="icon-btn hidden" id="btn-settings" title="Ρυθμίσεις"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+    <button class="icon-btn" id="btn-signout" title="Αποσύνδεση"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
+  </header>
 
-        function saveCustomers(customers) {
-            localStorage.setItem('kofi_customers', JSON.stringify(customers));
-        }
+  <div class="wrap">
+    <div class="stat-row">
+      <div class="stat"><div class="k">Πελάτες</div><div class="v" id="stat-cust">0</div></div>
+      <div class="stat"><div class="k">Πόντοι σε κυκλοφορία</div><div class="v amber" id="stat-pts">0</div></div>
+    </div>
+    <div class="search">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="search" id="search" placeholder="Αναζήτηση με όνομα ή τηλέφωνο…">
+    </div>
+    <div class="list" id="cust-list"></div>
+  </div>
 
-        function searchCustomer() {
-            const phone = document.getElementById('phoneInput').value.trim();
-            if (phone.length < 10) {
-                alert('Παρακαλώ εισάγετε έγκυρο αριθμό κινητού 10 ψηφίων.');
-                return;
-            }
+  <button class="fab" id="btn-add-cust">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Νέος πελάτης
+  </button>
+</section>
 
-            let customers = getCustomers();
+<!-- ============ MODAL: ενέργειες πελάτη ============ -->
+<div class="modal" id="m-action"><div class="sheet">
+  <div class="sheet-hd"><span id="act-name">Πελάτης</span><button data-close="m-action"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+  <div class="sheet-bd" id="act-body"></div>
+</div></div>
 
-            if (!customers[phone]) {
-                const newName = prompt('Ο πελάτης δεν βρέθηκε. Πληκτρολογήστε όνομα πελάτη:', 'Πελάτης');
-                if (!newName) return;
+<!-- ============ MODAL: προσθήκη/επεξεργασία πελάτη ============ -->
+<div class="modal" id="m-edit"><div class="sheet">
+  <div class="sheet-hd"><span id="edit-title">Στοιχεία πελάτη</span><button data-close="m-edit"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+  <div class="sheet-bd">
+    <div class="field"><label>Όνομα</label><input id="edit-name" placeholder="π.χ. Γιάννης"></div>
+    <div class="field"><label>Επώνυμο</label><input id="edit-surname"></div>
+    <div class="field"><label>Τηλέφωνο</label><input id="edit-phone" type="tel" inputmode="tel"></div>
+    <div style="display:flex;gap:12px;margin-top:8px">
+      <button class="btn btn-red hidden" id="btn-del" style="width:auto;flex:0 0 var(--tap)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+      <button class="btn btn-dark" id="btn-save-cust">Αποθήκευση</button>
+    </div>
+  </div>
+</div></div>
 
-                customers[phone] = {
-                    phone: phone,
-                    name: newName,
-                    points: 0
-                };
-                saveCustomers(customers);
-            }
+<!-- ============ MODAL: στατιστικά ============ -->
+<div class="modal" id="m-stats"><div class="sheet">
+  <div class="sheet-hd"><span>Στατιστικά</span><button data-close="m-stats"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+  <div class="sheet-bd">
+    <div class="tabs" id="stat-tabs">
+      <button class="tab on" data-period="today">Σήμερα</button>
+      <button class="tab" data-period="week">Εβδ.</button>
+      <button class="tab" data-period="month">Μήνας</button>
+      <button class="tab" data-period="year">Έτος</button>
+    </div>
+    <div class="stat-row" style="grid-template-columns:1fr 1fr">
+      <div class="stat"><div class="k">Νέοι πελάτες</div><div class="v" id="s-new">0</div></div>
+      <div class="stat"><div class="k">Πόντοι που δόθηκαν</div><div class="v amber" id="s-pts">0</div></div>
+      <div class="stat"><div class="k">Εξαργυρώσεις</div><div class="v" id="s-red" style="color:var(--green)">0</div></div>
+      <div class="stat"><div class="k">Τζίρος</div><div class="v" id="s-eur">0,00€</div></div>
+    </div>
+  </div>
+</div></div>
 
-            activeCustomer = customers[phone];
+<!-- ============ MODAL: ρυθμίσεις (admin) ============ -->
+<div class="modal" id="m-settings"><div class="sheet">
+  <div class="sheet-hd"><span>Ρυθμίσεις καταστήματος</span><button data-close="m-settings"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+  <div class="sheet-bd">
+    <div class="code-box"><div class="k">Κωδικός εισόδου προσωπικού</div><div class="c" id="set-code">—</div></div>
+    <div class="field"><label>Πόντοι για εξαργύρωση</label><input type="number" id="set-req" min="1" step="1"></div>
+    <div class="field"><label>Αξία δώρου/έκπτωσης (€)</label><input type="number" id="set-disc" min="0" step="0.10"></div>
+    <button class="btn btn-dark" id="btn-save-set">Αποθήκευση ρυθμίσεων</button>
 
-            document.getElementById('customerName').innerText = activeCustomer.name;
-            document.getElementById('customerPhone').innerText = activeCustomer.phone;
-            document.getElementById('customerPoints').innerText = activeCustomer.points;
-            document.getElementById('customerSection').style.display = 'block';
-        }
+    <div class="eyebrow">Προσωπικό</div>
+    <div id="staff-list"></div>
 
-        function updatePoints(amount) {
-            if (!activeCustomer) {
-                alert('Παρακαλώ αναζητήστε πρώτα πελάτη.');
-                return;
-            }
+    <div class="eyebrow">Δεδομένα</div>
+    <button class="btn btn-ghost" id="btn-import">Εισαγωγή πελατών από CSV</button>
+    <button class="btn btn-ghost" id="btn-csv" style="margin-top:10px">Εξαγωγή πελατών (CSV)</button>
+    <button class="btn btn-ghost" id="btn-backup" style="margin-top:10px">Πλήρες backup (JSON)</button>
+    <button class="btn btn-ghost" id="btn-restore" style="margin-top:10px">Επαναφορά από backup (JSON)</button>
+    <input type="file" id="file-import" accept=".csv,text/csv" class="hidden">
+    <input type="file" id="file-restore" accept="application/json,.json" class="hidden">
+    <p style="font-size:12px;color:var(--muted);margin-top:12px;line-height:1.5">Το CSV εισαγωγής χρειάζεται στήλες: <b>όνομα, επώνυμο, τηλέφωνο</b>. Το JSON backup κρατά πλήρες αντίγραφο (πελάτες + κινήσεις + ρυθμίσεις) για μεταφορά αργότερα στη σουίτα.</p>
+  </div>
+</div></div>
 
-            let customers = getCustomers();
-            let current = customers[activeCustomer.phone];
-            if (!current) return;
+<!-- ============ MODAL: κέρδισε δώρο ============ -->
+<div class="modal" id="m-reward"><div class="sheet" style="max-width:380px">
+  <div class="reward-pop">
+    <div class="emoji">🎁</div>
+    <h3>Κέρδισε δώρο!</h3>
+    <p>Ο πελάτης συμπλήρωσε τους πόντους. Δικαιούται τη δωρεάν έκπτωση/καφέ.</p>
+    <button class="btn btn-green" data-close="m-reward">Τέλεια</button>
+  </div>
+</div></div>
 
-            const newPoints = current.points + amount;
-            if (newPoints < 0) {
-                alert('Ο πελάτης δεν έχει αρκετούς πόντους για εξαργύρωση.');
-                return;
-            }
-
-            current.points = newPoints;
-            customers[activeCustomer.phone] = current;
-            saveCustomers(customers);
-
-            activeCustomer.points = newPoints;
-            document.getElementById('customerPoints').innerText = activeCustomer.points;
-            alert(amount > 0 ? 'Προστέθηκε 1 πόντος επιτυχώς!' : 'Η εξαργύρωση ολοκληρώθηκε!');
-        }
-    </script>
-
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
