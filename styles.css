@@ -104,7 +104,7 @@ input{font-size:16px} /* απoφυγή zoom σε iOS */
 
 /* ---------- Modal ---------- */
 .modal{display:none;position:fixed;inset:0;z-index:100;background:rgba(34,24,18,.55);
-  backdrop-filter:blur(3px);align-items:flex-end;justify-content:center;padding:0}
+  align-items:flex-end;justify-content:center;padding:0}
 .modal.on{display:flex;animation:fade .18s ease-out}
 @keyframes fade{from{opacity:0}to{opacity:1}}
 .sheet{background:var(--paper);width:100%;max-width:620px;border-radius:22px 22px 0 0;

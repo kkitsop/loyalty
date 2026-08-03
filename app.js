@@ -10,6 +10,8 @@ if (configured) sb = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_K
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt = (n) => Number(n || 0).toFixed(2).replace('.', ',') + '€';
+const maskPhone = (p) => { p = String(p||'').replace(/\s+/g,''); return p.length > 3 ? '•••' + p.slice(-3) : (p || '—'); };
+const maskName = (c) => { const fn = (c.name||'Πελάτης').trim(); const s = (c.surname||'').trim(); return s ? `${fn} ${s[0]}.` : fn; };
 
 function screen(id){ document.querySelectorAll('.screen').forEach(s => s.classList.remove('on')); $(id).classList.add('on'); }
 function openM(id){ $(id).classList.add('on'); }
@@ -216,6 +218,7 @@ async function refresh(){
     if (!opQueue.length){ state.customers = c.data || []; state.txns = t.data || []; }
     if (s.data) state.store = s.data;
     renderCustomers($('search').value);
+    autoLocalBackup(); maybeRemindBackup();
   } catch(e){ console.error(e); }
   loader(false); updateNetUI(); flushQueue();
 }
@@ -241,7 +244,7 @@ function renderCustomers(filter=''){
     const gifts = Math.floor((c.points||0) / req);
     return `<div class="row" data-id="${c.id}">
       <div class="ava${gifts?' ava-gift':''}">${gifts?'🎁':esc(init)}</div>
-      <div class="row-main"><b>${esc(nm)} ${esc(c.surname||'')}</b><span>${esc(c.phone||'Χωρίς τηλέφωνο')}</span></div>
+      <div class="row-main"><b>${esc(maskName(c))}</b><span>${c.phone ? esc(maskPhone(c.phone)) : 'Χωρίς τηλέφωνο'}</span></div>
       <div class="row-pts">
         ${gifts?`<span class="gift-tag">Έτοιμο για δώρο${gifts>1?' ×'+gifts:''}</span>`:''}
         <b>${ICON.star} ${c.points||0}</b><span>${c.visits||0} επισκ.</span>
@@ -259,6 +262,7 @@ $('btn-add-cust').onclick = () => {
   ['edit-name','edit-surname','edit-phone'].forEach(id => $(id).value = '');
   $('btn-del').classList.add('hidden');
   openM('m-edit');
+  $('edit-name').focus({ preventScroll:true });
 };
 
 function openEdit(){
@@ -268,6 +272,7 @@ function openEdit(){
   $('edit-name').value = c.name || ''; $('edit-surname').value = c.surname || ''; $('edit-phone').value = c.phone || '';
   $('btn-del').classList.remove('hidden');
   openM('m-edit');
+  $('edit-name').focus({ preventScroll:true });
 }
 
 $('btn-save-cust').onclick = () => {
@@ -525,7 +530,7 @@ $('btn-csv').onclick = () => {
 };
 
 /* ---- Πλήρες backup (JSON) — για μεταφορά αργότερα στη σουίτα ---- */
-$('btn-backup').onclick = () => {
+function exportBackup(){
   const phoneOf = (cid) => (state.customers.find(x => x.id === cid) || {}).phone || null;
   const snapshot = {
     kind: 'kofi-loyalty-backup', version: 1, exported_at: new Date().toISOString(),
@@ -537,8 +542,34 @@ $('btn-backup').onclick = () => {
   const a = document.createElement('a');
   a.href = url; a.download = `kofi_loyalty_backup_${new Date().toISOString().slice(0,10)}.json`;
   document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-  toast('Το backup κατέβηκε','success');
-};
+  localStorage.setItem('kofi_bak_last_' + state.store.id, new Date().toISOString().slice(0,10));
+  toast('Το backup ημέρας κατέβηκε','success');
+}
+$('btn-backup').onclick = exportBackup;
+$('btn-backup-day').onclick = exportBackup;
+
+/* Αυτόματο τοπικό snapshot (rolling 7 ημερών, στη συσκευή) */
+function autoLocalBackup(){
+  if (!state.store) return;
+  const today = new Date().toISOString().slice(0,10);
+  const pref = 'kofi_autobak_' + state.store.id + '_';
+  const snap = { exported_at:new Date().toISOString(), customers: state.customers.map(c => ({ name:c.name, surname:c.surname, phone:c.phone, points:c.points||0, visits:c.visits||0, total_spent:c.total_spent||0 })) };
+  try {
+    localStorage.setItem(pref + today, JSON.stringify(snap));
+    const keys = Object.keys(localStorage).filter(k => k.startsWith(pref)).sort();
+    while (keys.length > 7){ localStorage.removeItem(keys.shift()); }
+  } catch(_){}
+}
+/* Υπενθύμιση backup στο κλείσιμο (μία φορά ανά είσοδο, μετά τις 18:00) */
+function maybeRemindBackup(){
+  if (state.remindedBackup || !state.store) return;
+  state.remindedBackup = true;
+  const now = new Date(); if (now.getHours() < 18) return;
+  const today = now.toISOString().slice(0,10);
+  if (localStorage.getItem('kofi_bak_last_' + state.store.id) === today) return;
+  if (state.txns.some(t => (t.created_at||'').slice(0,10) === today))
+    toast('Θυμήσου το backup ημέρας 📦 — κουμπί ⬇ πάνω','warn');
+}
 
 /* ---- Επαναφορά από backup (JSON) ---- */
 $('btn-restore').onclick = () => $('file-restore').click();
