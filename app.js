@@ -422,6 +422,17 @@ function drawStats(period){
   }});
   $('s-new').textContent = nw; $('s-pts').textContent = pts; $('s-red').textContent = red; $('s-eur').textContent = fmt(eur);
   drawChart();
+
+  // Λίστα δωρεάν καφέδων: ποιοι, πότε, πόσα δόθηκαν (στο επιλεγμένο διάστημα)
+  const nameById = {}; state.customers.forEach(c => nameById[c.id] = maskName(c));
+  const dt = (iso) => { const d = new Date(iso), p = n => String(n).padStart(2,'0'); return `${p(d.getDate())}/${p(d.getMonth()+1)} ${p(d.getHours())}:${p(d.getMinutes())}`; };
+  const reds = state.txns.filter(t => t.type==='REDEEM' && new Date(t.created_at) >= start)
+    .sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+  $('stat-redeems').innerHTML = reds.length
+    ? `<div class="cust-meta" style="margin:0 0 6px">Σύνολο: <b>${reds.length}</b> δωρεάν καφέδες</div>` + reds.map(t =>
+        `<div class="rank"><div class="n">🎁</div><div class="rank-main"><b>${esc(nameById[t.customer_id] || 'Πελάτης')}</b><span>${dt(t.created_at)}</span></div><div class="val" style="color:var(--green)">−${t.points} ${ICON.star}</div></div>`
+      ).join('')
+    : '<div class="empty" style="padding:16px">Καμία εξαργύρωση σε αυτό το διάστημα</div>';
 }
 
 function drawChart(){
